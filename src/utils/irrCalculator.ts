@@ -59,14 +59,23 @@ function calculateYearFractionForDate(date: Date, fiscalYearEndDate: string): nu
   const fiscalYear = getFiscalYearForDate(checkDate, fiscalYearEndDate);
   
   const fiscalYearStart = new Date(fiscalYear - 1, fye.getMonth(), fye.getDate());
-  fiscalYearStart.setDate(fiscalYearStart.getDate() + 1);
+  fiscalYearStart.setDate(fiscalYearStart.getDate() + 1); // Day after FYE = start of new FY
+  fiscalYearStart.setHours(0, 0, 0, 0);
   
+  // End of fiscal year is the start of the next fiscal year (ensures full 365/366 days)
   const fiscalYearEnd = new Date(fiscalYear, fye.getMonth(), fye.getDate());
+  fiscalYearEnd.setDate(fiscalYearEnd.getDate() + 1); // Day after FYE = start of next FY
+  fiscalYearEnd.setHours(0, 0, 0, 0);
   
-  const daysFromStart = Math.ceil((checkDate.getTime() - fiscalYearStart.getTime()) / (1000 * 60 * 60 * 24));
-  const daysInYear = Math.ceil((fiscalYearEnd.getTime() - fiscalYearStart.getTime()) / (1000 * 60 * 60 * 24));
+  // Calculate exact fraction using milliseconds (handles leap years automatically)
+  const msFromStart = checkDate.getTime() - fiscalYearStart.getTime();
+  const msInYear = fiscalYearEnd.getTime() - fiscalYearStart.getTime();
   
-  return Math.max(0, Math.min(1, 1 - (daysFromStart / daysInYear)));
+  // Calculate fraction of year elapsed (0.0 = start of year, 1.0 = end of year)
+  const fractionElapsed = msFromStart / msInYear;
+  
+  // Return fraction remaining (1.0 = start of year, 0.0 = end of year)
+  return Math.max(0, Math.min(1, 1 - fractionElapsed));
 }
 
 /**

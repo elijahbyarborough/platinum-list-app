@@ -115,19 +115,27 @@ export function calculateYearFractionForDate(date: Date, fiscalYearEndDate: stri
   // Get the fiscal year for this date
   const fiscalYear = getFiscalYearForDate(checkDate, fiscalYearEndDate);
   
-  // Calculate the start of this fiscal year (FYE of previous year)
+  // Calculate the start of this fiscal year (day after previous FYE)
   const fiscalYearStart = new Date(fiscalYear - 1, fye.getMonth(), fye.getDate());
   fiscalYearStart.setDate(fiscalYearStart.getDate() + 1); // Day after FYE = start of new FY
+  fiscalYearStart.setHours(0, 0, 0, 0);
   
-  // Calculate the end of this fiscal year
+  // Calculate the end of this fiscal year (start of next fiscal year, which is the day after this FYE)
+  // This ensures msInYear represents the full 365/366 days
   const fiscalYearEnd = new Date(fiscalYear, fye.getMonth(), fye.getDate());
+  fiscalYearEnd.setDate(fiscalYearEnd.getDate() + 1); // Day after FYE = start of next FY
+  fiscalYearEnd.setHours(0, 0, 0, 0);
   
-  // Calculate days from start of FY to check date
-  const daysFromStart = Math.ceil((checkDate.getTime() - fiscalYearStart.getTime()) / (1000 * 60 * 60 * 24));
-  const daysInYear = Math.ceil((fiscalYearEnd.getTime() - fiscalYearStart.getTime()) / (1000 * 60 * 60 * 24));
+  // Calculate exact days from start of FY to check date (as a fraction)
+  const msFromStart = checkDate.getTime() - fiscalYearStart.getTime();
+  const msInYear = fiscalYearEnd.getTime() - fiscalYearStart.getTime();
+  
+  // Calculate fraction of year elapsed (0.0 = start of year, 1.0 = end of year)
+  const fractionElapsed = msFromStart / msInYear;
   
   // Return fraction remaining (1.0 = start of year, 0.0 = end of year)
-  return Math.max(0, Math.min(1, 1 - (daysFromStart / daysInYear)));
+  // This accounts for leap years automatically since msInYear will be different
+  return Math.max(0, Math.min(1, 1 - fractionElapsed));
 }
 
 /**
