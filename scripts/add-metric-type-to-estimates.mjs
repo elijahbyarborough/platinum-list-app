@@ -13,9 +13,14 @@
 
 import { sql } from '@vercel/postgres';
 import { config } from 'dotenv';
+import { existsSync } from 'fs';
 
-// Load environment variables from .env.local
-config({ path: '.env.local' });
+// Load environment variables - prefer .env.production if it exists (for production migration)
+// Otherwise use .env.local (for local development)
+const envFile = existsSync('.env.production') ? '.env.production' : '.env.local';
+config({ path: envFile });
+
+console.log(`Loading environment from: ${envFile}`);
 
 async function migrate() {
   try {

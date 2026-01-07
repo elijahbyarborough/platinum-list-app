@@ -85,49 +85,73 @@ export function EstimatesTable({
   const handlePaste = (e: React.ClipboardEvent, rowType: 'metrics' | 'dividends', startYear?: number) => {
     e.preventDefault();
     e.stopPropagation();
-    const pastedData = e.clipboardData.getData('text');
     
-    // Split by tabs (Excel columns) and newlines (Excel rows), then flatten
-    // Excel typically uses tabs for columns within a row
+    // Get clipboard data - try multiple formats for Windows compatibility
+    let pastedData = '';
+    try {
+      pastedData = e.clipboardData.getData('text/plain') || e.clipboardData.getData('text');
+    } catch (err) {
+      console.error('Error reading clipboard:', err);
+      return;
+    }
+    
+    if (!pastedData || pastedData.trim() === '') {
+      return;
+    }
+    
+    // Handle Windows line endings (\r\n) and Unix (\n), split by tabs
+    // Excel on Windows typically uses \r\n for line breaks and \t for column separators
     const lines = pastedData.split(/\r?\n/).filter(line => line.trim() !== '');
-    const allValues: string[] = [];
     
-    // If multiple lines, use first line (single row paste)
-    // If single line with tabs, split by tabs
-    if (lines.length > 0) {
-      const firstLine = lines[0];
-      const values = firstLine.split(/\t/).map(v => v.trim()).filter(v => v !== '');
-      allValues.push(...values);
+    if (lines.length === 0) {
+      return;
+    }
+    
+    // Use the first line (single row paste)
+    // Split by tabs - Excel uses tabs to separate columns
+    const firstLine = lines[0];
+    const values = firstLine.split(/\t/)
+      .map(v => v.trim())
+      .filter(v => v !== '');
+
+    if (values.length === 0) {
+      return;
     }
 
-    const newEstimates = [...estimates.length > 0 ? estimates : fiscalYears.map(year => ({
+    // Ensure we have estimates array
+    const currentEstimates = estimates.length > 0 ? estimates : fiscalYears.map(year => ({
       fiscal_year: year,
       metric_value: null,
       dividend_value: null,
-    }))];
+    }));
+
+    const newEstimates = [...currentEstimates];
 
     // If we know the starting year (from the input that received paste), start there
-    const startIndex = startYear ? fiscalYears.indexOf(startYear) : 0;
+    // Otherwise start at the first column
+    const startIndex = startYear !== undefined ? fiscalYears.indexOf(startYear) : 0;
 
-    allValues.forEach((value, idx) => {
+    values.forEach((value, idx) => {
       const targetIndex = startIndex + idx;
       if (targetIndex >= 0 && targetIndex < fiscalYears.length) {
         const targetYear = fiscalYears[targetIndex];
         const estimateIndex = newEstimates.findIndex(e => e.fiscal_year === targetYear);
         
         if (estimateIndex >= 0) {
-          const numValue = value ? parseFloat(value.replace(/,/g, '')) : null;
+          // Parse the value, removing commas and handling various number formats
+          const cleanedValue = value.replace(/,/g, '').replace(/\$/g, '').trim();
+          const numValue = cleanedValue ? parseFloat(cleanedValue) : null;
           const validValue = numValue !== null && !isNaN(numValue) ? numValue : null;
           
           if (rowType === 'metrics') {
             newEstimates[estimateIndex] = {
               ...newEstimates[estimateIndex],
-              metric_value: validValue ?? newEstimates[estimateIndex].metric_value,
+              metric_value: validValue,
             };
           } else {
             newEstimates[estimateIndex] = {
               ...newEstimates[estimateIndex],
-              dividend_value: validValue ?? newEstimates[estimateIndex].dividend_value,
+              dividend_value: validValue,
             };
           }
         }
@@ -186,6 +210,7 @@ export function EstimatesTable({
             {/* Metrics Row */}
             <tr 
               onPaste={(e) => handlePaste(e, 'metrics')}
+              onPasteCapture={(e) => handlePaste(e, 'metrics')}
               className={cn(
                 "transition-all duration-300",
                 isPasteActive === 'metrics' && "bg-primary/10"
@@ -205,7 +230,16 @@ export function EstimatesTable({
                       step="0.01"
                       value={estimate.metric_value === null ? '' : estimate.metric_value}
                       onChange={(e) => handleMetricChange(year, e.target.value)}
-                      onPaste={(e) => handlePaste(e, 'metrics', year)}
+                      onPaste={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handlePaste(e, 'metrics', year);
+                      }}
+                      onPasteCapture={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handlePaste(e, 'metrics', year);
+                      }}
                       className="h-9 text-center text-sm px-2 bg-background/50"
                       placeholder="—"
                     />
@@ -217,6 +251,7 @@ export function EstimatesTable({
             {/* Dividends Row */}
             <tr 
               onPaste={(e) => handlePaste(e, 'dividends')}
+              onPasteCapture={(e) => handlePaste(e, 'dividends')}
               className={cn(
                 "transition-all duration-300",
                 isPasteActive === 'dividends' && "bg-primary/10"
@@ -239,7 +274,16 @@ export function EstimatesTable({
                       step="0.01"
                       value={estimate.dividend_value === null ? '' : estimate.dividend_value}
                       onChange={(e) => handleDividendChange(year, e.target.value)}
-                      onPaste={(e) => handlePaste(e, 'dividends', year)}
+                      onPaste={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handlePaste(e, 'dividends', year);
+                      }}
+                      onPasteCapture={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handlePaste(e, 'dividends', year);
+                      }}
                       className="h-9 text-center text-sm px-2 bg-background/50"
                       placeholder="—"
                     />
