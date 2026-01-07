@@ -1,9 +1,12 @@
 import { sql, parseCompanyRow, Company } from '../db.js';
 
 export async function findAllCompanies(): Promise<Company[]> {
+  // Only return companies that have at least one submission log entry
   const { rows } = await sql`
-    SELECT * FROM companies
-    ORDER BY updated_at DESC
+    SELECT DISTINCT c.*
+    FROM companies c
+    INNER JOIN submission_logs sl ON c.id = sl.company_id
+    ORDER BY c.updated_at DESC
   `;
   return rows.map(parseCompanyRow);
 }
