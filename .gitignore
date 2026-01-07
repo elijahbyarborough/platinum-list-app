@@ -23,6 +23,9 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
+# Local npm cache (Cursor sandbox workaround)
+.npm-cache/
+
 # IDE
 .vscode/
 .idea/
