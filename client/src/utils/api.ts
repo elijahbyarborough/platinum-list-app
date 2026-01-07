@@ -1,5 +1,7 @@
 import { Company, CompanyFormData } from '@/types/company';
 import { ApiResponse, RefreshPricesResponse } from '@/types/api';
+import { SubmissionLogEntry } from '@/types/submissionLog';
+import { EditComparison } from '@/types/editHistory';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 
@@ -47,6 +49,16 @@ export const api = {
     return fetchApi<RefreshPricesResponse>('/prices/refresh-all', {
       method: 'POST',
     });
+  },
+
+  // Submission Logs
+  getSubmissionLogs: (): Promise<SubmissionLogEntry[]> => {
+    return fetchApi<SubmissionLogEntry[]>('/submission-logs');
+  },
+
+  // Edit History
+  getEditHistory: (): Promise<EditComparison[]> => {
+    return fetchApi<EditComparison[]>('/edit-history');
   },
 };
 

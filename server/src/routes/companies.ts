@@ -8,29 +8,31 @@ import { Company } from '../models/types.js';
 
 const router = Router();
 
-// GET /api/companies - List all companies with calculated IRRs
+// GET /api/companies - Get only the most recent submission
 router.get('/', async (req, res) => {
   try {
-    const companies = CompanyModel.findAll();
+    const company = CompanyModel.findMostRecent();
+    
+    if (!company) {
+      return res.json([]);
+    }
     
     // Enrich with exit multiples and IRR calculations
-    const enriched = companies.map(company => {
-      const exitMultiples = ExitMultipleModel.findByCompanyId(company.id!, 5);
-      const exitMultiple = exitMultiples.length > 0 ? exitMultiples[0].multiple : null;
-      
-      let irr: number | null = null;
-      if (exitMultiple && hasSufficientDataForIRR(company)) {
-        irr = calculate5YearIRR(company, exitMultiple);
-      }
-      
-      return {
-        ...company,
-        exit_multiple_5yr: exitMultiple,
-        irr_5yr: irr,
-      };
-    });
+    const exitMultiples = ExitMultipleModel.findByCompanyId(company.id!, 5);
+    const exitMultiple = exitMultiples.length > 0 ? exitMultiples[0].multiple : null;
     
-    res.json(enriched);
+    let irr: number | null = null;
+    if (exitMultiple && hasSufficientDataForIRR(company)) {
+      irr = calculate5YearIRR(company, exitMultiple);
+    }
+    
+    const enriched = {
+      ...company,
+      exit_multiple_5yr: exitMultiple,
+      irr_5yr: irr,
+    };
+    
+    res.json([enriched]);
   } catch (error) {
     console.error('Error fetching companies:', error);
     res.status(500).json({ error: 'Failed to fetch companies' });
@@ -73,6 +75,20 @@ router.post('/', async (req, res) => {
     // Normalize ticker to uppercase
     data.ticker = data.ticker.toUpperCase();
     
+    // Check if this is an edit (company already exists)
+    const existingCompany = CompanyModel.findByTicker(data.ticker);
+    const isEdit = !!existingCompany;
+    
+    // When editing, preserve the existing stock price - don't allow updates
+    if (isEdit && existingCompany) {
+      // Remove current_stock_price from data to prevent updating it
+      delete data.current_stock_price;
+      delete data.price_last_updated;
+    }
+    
+    // Store exit multiple before converting (it's not a company column)
+    const exitMultipleValue = data.exit_multiple_5yr;
+    
     // Convert estimates arrays to fy1-fy11 format if needed
     if (Array.isArray(data.metrics)) {
       for (let i = 0; i < 11; i++) {
@@ -88,6 +104,9 @@ router.post('/', async (req, res) => {
       delete data.dividends;
     }
     
+    // Remove exit_multiple_5yr from data as it's not a company column
+    delete data.exit_multiple_5yr;
+    
     // Set default scenario if not provided
     if (!data.scenario) {
       data.scenario = 'base';
@@ -97,11 +116,11 @@ router.post('/', async (req, res) => {
     const company = CompanyModel.upsertByTicker(data as Company);
     
     // Upsert exit multiple if provided
-    if (data.exit_multiple_5yr !== undefined && data.exit_multiple_5yr !== null) {
+    if (exitMultipleValue !== undefined && exitMultipleValue !== null) {
       ExitMultipleModel.upsert({
         company_id: company.id!,
         time_horizon_years: 5,
-        multiple: data.exit_multiple_5yr,
+        multiple: exitMultipleValue,
       });
     }
     
@@ -112,7 +131,28 @@ router.post('/', async (req, res) => {
       snapshot_data: JSON.stringify(company),
     });
     
-    res.json(company);
+    // Fetch the company again to get the latest data (including updated_at)
+    const updatedCompany = CompanyModel.findById(company.id!);
+    if (!updatedCompany) {
+      return res.status(500).json({ error: 'Failed to retrieve updated company' });
+    }
+    
+    // Enrich with exit multiples and IRR calculations
+    const exitMultiples = ExitMultipleModel.findByCompanyId(updatedCompany.id!, 5);
+    const exitMultiple = exitMultiples.length > 0 ? exitMultiples[0].multiple : null;
+    
+    let irr: number | null = null;
+    if (exitMultiple && hasSufficientDataForIRR(updatedCompany)) {
+      irr = calculate5YearIRR(updatedCompany, exitMultiple);
+    }
+    
+    const enriched = {
+      ...updatedCompany,
+      exit_multiple_5yr: exitMultiple,
+      irr_5yr: irr,
+    };
+    
+    res.json(enriched);
   } catch (error) {
     console.error('Error creating/updating company:', error);
     res.status(500).json({ error: 'Failed to create/update company' });
@@ -146,6 +186,26 @@ router.post('/:ticker/refresh-price', async (req, res) => {
   } catch (error) {
     console.error('Error refreshing price:', error);
     res.status(500).json({ error: 'Failed to refresh price' });
+  }
+});
+
+// GET /api/companies/:ticker/quote - Get stock quote without requiring company to exist
+router.get('/:ticker/quote', async (req, res) => {
+  try {
+    const { ticker } = req.params;
+    const normalizedTicker = ticker.toUpperCase();
+    
+    const quote = await StockPriceService.getCompleteQuote(normalizedTicker);
+    
+    res.json({
+      ticker: normalizedTicker,
+      price: quote.price,
+      companyName: quote.companyName,
+      fiscalYearEnd: quote.fiscalYearEnd,
+    });
+  } catch (error) {
+    console.error('Error fetching quote:', error);
+    res.status(500).json({ error: 'Failed to fetch quote' });
   }
 });
 

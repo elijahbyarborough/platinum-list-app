@@ -30,5 +30,13 @@ export class SubmissionLogModel {
     const result = stmt.get(companyId) as SubmissionLog | undefined;
     return result || null;
   }
+
+  static findAll(): SubmissionLog[] {
+    const stmt = db.prepare(`
+      SELECT * FROM submission_logs
+      ORDER BY submitted_at DESC
+    `);
+    return stmt.all() as SubmissionLog[];
+  }
 }
 

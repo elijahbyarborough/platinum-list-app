@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { Company } from '@/types/company';
 import { formatPrice, formatPercentage, formatMultiple, formatDate, formatDateTime } from '@/utils/formatting';
+import { cn } from '@/lib/utils';
 
 interface CompaniesTableProps {
   companies: Company[];
@@ -10,8 +10,31 @@ interface CompaniesTableProps {
 type SortField = 'ticker' | 'company_name' | 'current_stock_price' | 'exit_multiple_5yr' | 'irr_5yr' | 'updated_at' | 'analyst_initials';
 type SortDirection = 'asc' | 'desc';
 
+// Get IRR color class based on value
+function getIRRColorClass(irr: number | null | undefined): string {
+  if (irr === null || irr === undefined) return 'text-muted-foreground';
+  
+  const percentage = irr * 100;
+  if (percentage >= 15) return 'irr-excellent';
+  if (percentage >= 10) return 'irr-good';
+  if (percentage >= 5) return 'irr-moderate';
+  if (percentage >= 0) return 'irr-low';
+  return 'irr-negative';
+}
+
+// Get IRR background gradient for visual indicator
+function getIRRBackground(irr: number | null | undefined): string {
+  if (irr === null || irr === undefined) return '';
+  
+  const percentage = irr * 100;
+  if (percentage >= 15) return 'bg-gradient-to-r from-[hsl(142,76%,45%,0.15)] to-transparent';
+  if (percentage >= 10) return 'bg-gradient-to-r from-[hsl(142,50%,40%,0.12)] to-transparent';
+  if (percentage >= 5) return 'bg-gradient-to-r from-[hsl(45,93%,47%,0.1)] to-transparent';
+  if (percentage >= 0) return 'bg-gradient-to-r from-[hsl(16,85%,50%,0.1)] to-transparent';
+  return 'bg-gradient-to-r from-[hsl(0,72%,51%,0.1)] to-transparent';
+}
+
 export function CompaniesTable({ companies }: CompaniesTableProps) {
-  const navigate = useNavigate();
   const [sortField, setSortField] = useState<SortField>('irr_5yr');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
 
@@ -126,82 +149,147 @@ export function CompaniesTable({ companies }: CompaniesTableProps) {
   };
 
   const SortIcon = ({ field }: { field: SortField }) => {
-    if (sortField !== field) return null;
-    return <span>{sortDirection === 'asc' ? '↑' : '↓'}</span>;
+    const isActive = sortField === field;
+    return (
+      <span className={cn(
+        'ml-1 inline-flex transition-colors',
+        isActive ? 'text-primary' : 'text-muted-foreground/50'
+      )}>
+        {isActive ? (
+          sortDirection === 'asc' ? (
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+            </svg>
+          ) : (
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          )
+        ) : (
+          <svg className="w-4 h-4 opacity-0 group-hover:opacity-100" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
+          </svg>
+        )}
+      </span>
+    );
   };
+
+  if (sortedCompanies.length === 0) {
+    return (
+      <div className="text-center py-16 px-4">
+        <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-secondary flex items-center justify-center">
+          <svg className="w-8 h-8 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+          </svg>
+        </div>
+        <h3 className="text-lg font-semibold mb-2">No companies yet</h3>
+        <p className="text-muted-foreground text-sm mb-4">Add your first company to start tracking estimates</p>
+      </div>
+    );
+  }
 
   return (
     <div className="overflow-x-auto">
-      <table className="min-w-full border-collapse border border-gray-300">
+      <table className="data-table">
         <thead>
-          <tr className="bg-gray-100">
+          <tr>
             <th
-              className="border border-gray-300 px-4 py-3 text-left cursor-pointer hover:bg-gray-200"
+              className="cursor-pointer hover:text-foreground transition-colors group"
               onClick={() => handleSort('ticker')}
             >
-              Ticker <SortIcon field="ticker" />
+              <span className="flex items-center">
+                Ticker
+                <SortIcon field="ticker" />
+              </span>
             </th>
             <th
-              className="border border-gray-300 px-4 py-3 text-left cursor-pointer hover:bg-gray-200"
+              className="cursor-pointer hover:text-foreground transition-colors group"
               onClick={() => handleSort('company_name')}
             >
-              Company Name <SortIcon field="company_name" />
+              <span className="flex items-center">
+                Company
+                <SortIcon field="company_name" />
+              </span>
             </th>
             <th
-              className="border border-gray-300 px-4 py-3 text-right cursor-pointer hover:bg-gray-200"
+              className="cursor-pointer hover:text-foreground transition-colors group text-right"
               onClick={() => handleSort('current_stock_price')}
             >
-              Current Price <SortIcon field="current_stock_price" />
+              <span className="flex items-center justify-end">
+                Price
+                <SortIcon field="current_stock_price" />
+              </span>
             </th>
             <th
-              className="border border-gray-300 px-4 py-3 text-right cursor-pointer hover:bg-gray-200"
+              className="cursor-pointer hover:text-foreground transition-colors group text-right"
               onClick={() => handleSort('exit_multiple_5yr')}
             >
-              5-Year Exit Multiple <SortIcon field="exit_multiple_5yr" />
+              <span className="flex items-center justify-end">
+                Exit Multiple
+                <SortIcon field="exit_multiple_5yr" />
+              </span>
             </th>
             <th
-              className="border border-gray-300 px-4 py-3 text-right cursor-pointer hover:bg-gray-200"
+              className="cursor-pointer hover:text-foreground transition-colors group text-right min-w-[160px]"
               onClick={() => handleSort('irr_5yr')}
             >
-              5-Year Expected Return <SortIcon field="irr_5yr" />
+              <span className="flex items-center justify-end">
+                <span className="text-primary font-semibold">5Y Return</span>
+                <SortIcon field="irr_5yr" />
+              </span>
             </th>
             <th
-              className="border border-gray-300 px-4 py-3 text-left cursor-pointer hover:bg-gray-200"
+              className="cursor-pointer hover:text-foreground transition-colors group"
               onClick={() => handleSort('updated_at')}
             >
-              Last Updated <SortIcon field="updated_at" />
+              <span className="flex items-center">
+                Updated
+                <SortIcon field="updated_at" />
+              </span>
             </th>
             <th
-              className="border border-gray-300 px-4 py-3 text-left cursor-pointer hover:bg-gray-200"
+              className="cursor-pointer hover:text-foreground transition-colors group"
               onClick={() => handleSort('analyst_initials')}
             >
-              Analyst <SortIcon field="analyst_initials" />
+              <span className="flex items-center">
+                Analyst
+                <SortIcon field="analyst_initials" />
+              </span>
             </th>
           </tr>
         </thead>
         <tbody>
-          {sortedCompanies.map((company) => (
+          {sortedCompanies.map((company, index) => (
             <tr
               key={company.id}
-              className="hover:bg-gray-50 cursor-pointer"
-              onClick={() => navigate(`/edit/${company.ticker}`)}
+              className={cn(
+                'transition-all duration-150',
+                getIRRBackground(company.irr_5yr)
+              )}
             >
-              <td className="border border-gray-300 px-4 py-3 font-semibold">
+              <td className="font-semibold font-mono text-foreground">
                 {company.ticker}
               </td>
-              <td className="border border-gray-300 px-4 py-3">
+              <td className="text-foreground">
                 {company.company_name}
               </td>
               <td
-                className="border border-gray-300 px-4 py-3 text-right"
+                className="text-right font-mono"
                 title={company.price_last_updated ? formatDateTime(company.price_last_updated) : 'Never updated'}
               >
-                {formatPrice(company.current_stock_price) || '—'}
+                {formatPrice(company.current_stock_price) || <span className="text-muted-foreground">—</span>}
               </td>
-              <td className="border border-gray-300 px-4 py-3 text-right">
-                {formatMultiple(company.exit_multiple_5yr) || '—'}
+              <td className="text-right font-mono">
+                {company.exit_multiple_5yr !== null && company.exit_multiple_5yr !== undefined ? (
+                  <span>
+                    {formatMultiple(company.exit_multiple_5yr)}
+                    <span className="text-muted-foreground text-xs ml-1 font-sans">({company.metric_type})</span>
+                  </span>
+                ) : (
+                  <span className="text-muted-foreground">—</span>
+                )}
               </td>
-              <td className="border border-gray-300 px-4 py-3 text-right">
+              <td className={cn('text-right font-mono text-base', getIRRColorClass(company.irr_5yr))}>
                 {company.irr_5yr !== null && company.irr_5yr !== undefined ? (
                   formatPercentage(company.irr_5yr)
                 ) : (
@@ -213,22 +301,18 @@ export function CompaniesTable({ companies }: CompaniesTableProps) {
                   </span>
                 )}
               </td>
-              <td className="border border-gray-300 px-4 py-3">
+              <td className="text-muted-foreground text-sm">
                 {formatDate(company.updated_at) || '—'}
               </td>
-              <td className="border border-gray-300 px-4 py-3">
-                {company.analyst_initials}
+              <td>
+                <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-secondary text-xs font-medium">
+                  {company.analyst_initials}
+                </span>
               </td>
             </tr>
           ))}
         </tbody>
       </table>
-      {sortedCompanies.length === 0 && (
-        <div className="text-center py-8 text-muted-foreground">
-          No companies found. Add your first company to get started.
-        </div>
-      )}
     </div>
   );
 }
-

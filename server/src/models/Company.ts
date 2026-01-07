@@ -10,6 +10,16 @@ export class CompanyModel {
     return stmt.all() as Company[];
   }
 
+  static findMostRecent(): Company | null {
+    const stmt = db.prepare(`
+      SELECT * FROM companies
+      ORDER BY updated_at DESC
+      LIMIT 1
+    `);
+    const result = stmt.get() as Company | undefined;
+    return result || null;
+  }
+
   static findByTicker(ticker: string): Company | null {
     const stmt = db.prepare('SELECT * FROM companies WHERE ticker = ?');
     const result = stmt.get(ticker) as Company | undefined;
@@ -76,15 +86,18 @@ export class CompanyModel {
     const values: any[] = [];
 
     Object.entries(data).forEach(([key, value]) => {
+      // Allow updating with null values, but skip undefined and protected fields
       if (key !== 'id' && key !== 'created_at' && value !== undefined) {
         updates.push(`${key} = ?`);
-        values.push(value);
+        values.push(value === null ? null : value);
       }
     });
 
     if (updates.length === 0) return existing;
 
+    // Always update the timestamp
     updates.push('updated_at = CURRENT_TIMESTAMP');
+    // Add id for WHERE clause
     values.push(id);
 
     const stmt = db.prepare(`
@@ -95,6 +108,7 @@ export class CompanyModel {
 
     stmt.run(...values);
 
+    // Fetch and return the updated company
     return this.findById(id);
   }
 
