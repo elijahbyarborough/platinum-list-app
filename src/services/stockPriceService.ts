@@ -4,7 +4,7 @@
 export class StockPriceService {
   static async fetchCompanyName(ticker: string): Promise<string | null> {
     try {
-      const response = await fetch(`http://localhost:3001/api/companies/${ticker}/refresh-price`);
+      const response = await fetch(`/api/companies/${ticker}/refresh-price`);
       if (response.ok) {
         const data = await response.json();
         return data.company_name || null;

@@ -45,8 +45,8 @@ export default function Dashboard() {
         {/* Header Section */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight mb-1">Portfolio Overview</h1>
-            <p className="text-muted-foreground">Track and analyze your equity estimates</p>
+            <h1 className="text-3xl font-bold tracking-tight mb-1">Platinum List Overview</h1>
+            <p className="text-muted-foreground">Tracking forward return estimates.</p>
           </div>
           <RefreshPricesButton />
         </div>

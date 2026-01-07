@@ -94,20 +94,31 @@ export async function getFiscalYearEnd(ticker: string): Promise<string | null> {
       const lastFiscalYearEnd = summary.defaultKeyStatistics.lastFiscalYearEnd;
       if (lastFiscalYearEnd) {
         const baseDate = new Date(lastFiscalYearEnd);
+        
+        // Use UTC methods to avoid timezone shifts
+        const month = baseDate.getUTCMonth();
+        const day = baseDate.getUTCDate();
+        
         const today = new Date();
-        today.setHours(0, 0, 0, 0);
+        const currentYear = today.getFullYear();
         
-        const month = baseDate.getMonth();
-        const day = baseDate.getDate();
+        // Create date using UTC to avoid timezone issues
+        let nextFiscalYearEnd = new Date(Date.UTC(currentYear, month, day));
         
-        let nextFiscalYearEnd = new Date(today.getFullYear(), month, day);
-        nextFiscalYearEnd.setHours(0, 0, 0, 0);
+        // Check if this year's FYE has passed (compare in local time)
+        const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+        const fyeLocal = new Date(currentYear, month, day);
         
-        if (nextFiscalYearEnd <= today) {
-          nextFiscalYearEnd.setFullYear(today.getFullYear() + 1);
+        if (fyeLocal <= todayStart) {
+          nextFiscalYearEnd = new Date(Date.UTC(currentYear + 1, month, day));
         }
         
-        return nextFiscalYearEnd.toISOString().split('T')[0];
+        // Format as YYYY-MM-DD using UTC values
+        const year = nextFiscalYearEnd.getUTCFullYear();
+        const m = String(nextFiscalYearEnd.getUTCMonth() + 1).padStart(2, '0');
+        const d = String(nextFiscalYearEnd.getUTCDate()).padStart(2, '0');
+        
+        return `${year}-${m}-${d}`;
       }
     }
     

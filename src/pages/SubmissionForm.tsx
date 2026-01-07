@@ -92,7 +92,7 @@ export default function SubmissionForm() {
     setRefreshingPrice(true);
     try {
       // Use the quote endpoint which doesn't require the company to exist
-      const response = await fetch(`http://localhost:3001/api/companies/${tickerSymbol}/quote`);
+      const response = await fetch(`/api/companies/${tickerSymbol}/quote`);
       if (response.ok) {
         const data = await response.json();
         if (data.price !== null) {
@@ -235,8 +235,7 @@ export default function SubmissionForm() {
                 )}
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="fiscal_year_end_date">Next Fiscal Year End</Label>
+              <div>
                 <FiscalYearPicker
                   value={formData.fiscal_year_end_date}
                   onChange={(value) => setFormData({ ...formData, fiscal_year_end_date: value })}

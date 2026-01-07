@@ -51,7 +51,7 @@ export function TickerAutocomplete({
     const timer = setTimeout(async () => {
       setLoading(true);
       try {
-        const response = await fetch(`http://localhost:3001/api/search?q=${encodeURIComponent(value)}`);
+        const response = await fetch(`/api/search?q=${encodeURIComponent(value)}`);
         if (response.ok) {
           const results = await response.json();
           setSuggestions(results);
