@@ -27,27 +27,46 @@ interface IRRResult {
 }
 
 /**
- * Calculate year fraction remaining in current fiscal year
+ * Get the fiscal year for a specific date
  */
-function calculateYearFraction(fiscalYearEndDate: string): number {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+function getFiscalYearForDate(date: Date, fiscalYearEndDate: string): number {
+  const checkDate = new Date(date);
+  checkDate.setHours(0, 0, 0, 0);
   
   const fye = new Date(fiscalYearEndDate);
   fye.setHours(0, 0, 0, 0);
   
-  // Create this year's and next year's FYE dates
-  let targetFYE = new Date(today.getFullYear(), fye.getMonth(), fye.getDate());
+  const fyeThisYear = new Date(checkDate.getFullYear(), fye.getMonth(), fye.getDate());
   
-  // If we've passed this year's FYE, use next year's
-  if (today > targetFYE) {
-    targetFYE = new Date(today.getFullYear() + 1, fye.getMonth(), fye.getDate());
+  if (checkDate > fyeThisYear) {
+    return checkDate.getFullYear() + 1;
   }
   
-  const daysUntilFYE = Math.ceil((targetFYE.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+  return checkDate.getFullYear();
+}
+
+/**
+ * Calculate the year fraction for a specific date within its fiscal year
+ * @returns Year fraction (0-1), where 1.0 = start of fiscal year, 0.0 = end of fiscal year
+ */
+function calculateYearFractionForDate(date: Date, fiscalYearEndDate: string): number {
+  const checkDate = new Date(date);
+  checkDate.setHours(0, 0, 0, 0);
   
-  // Normalize to 0-1 range (365 days in a year)
-  return Math.max(0, Math.min(1, daysUntilFYE / 365));
+  const fye = new Date(fiscalYearEndDate);
+  fye.setHours(0, 0, 0, 0);
+  
+  const fiscalYear = getFiscalYearForDate(checkDate, fiscalYearEndDate);
+  
+  const fiscalYearStart = new Date(fiscalYear - 1, fye.getMonth(), fye.getDate());
+  fiscalYearStart.setDate(fiscalYearStart.getDate() + 1);
+  
+  const fiscalYearEnd = new Date(fiscalYear, fye.getMonth(), fye.getDate());
+  
+  const daysFromStart = Math.ceil((checkDate.getTime() - fiscalYearStart.getTime()) / (1000 * 60 * 60 * 24));
+  const daysInYear = Math.ceil((fiscalYearEnd.getTime() - fiscalYearStart.getTime()) / (1000 * 60 * 60 * 24));
+  
+  return Math.max(0, Math.min(1, 1 - (daysFromStart / daysInYear)));
 }
 
 /**
@@ -85,10 +104,7 @@ export function calculate5YearIRRPreview(input: IRRInput): IRRResult {
     missingData.push('Fiscal year end date');
   }
   
-  // Calculate current fiscal year
-  const currentFY = input.fiscalYearEndDate ? getCurrentFiscalYear(input.fiscalYearEndDate) : null;
-  
-  if (!currentFY) {
+  if (!input.fiscalYearEndDate) {
     return {
       irr: null,
       priceCAGR: null,
@@ -99,19 +115,26 @@ export function calculate5YearIRRPreview(input: IRRInput): IRRResult {
     };
   }
   
-  // Need Year 5 (currentFY + 4) and Year 6 (currentFY + 5) metrics for interpolation
-  const year5FY = currentFY + 4;
-  const year6FY = currentFY + 5;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
   
-  const year5Metric = getMetricForYear(input.estimates, year5FY);
-  const year6Metric = getMetricForYear(input.estimates, year6FY);
+  // Calculate the date exactly 5 years from today
+  const fiveYearsFromNow = new Date(today);
+  fiveYearsFromNow.setFullYear(today.getFullYear() + 5);
   
-  if (year5Metric === null) {
-    missingData.push(`FY ${year5FY} metric estimate`);
+  // Get the fiscal year for the 5-year forward date
+  const forwardFY = getFiscalYearForDate(fiveYearsFromNow, input.fiscalYearEndDate);
+  const nextFY = forwardFY + 1;
+  
+  const forwardMetric = getMetricForYear(input.estimates, forwardFY);
+  const nextMetric = getMetricForYear(input.estimates, nextFY);
+  
+  if (forwardMetric === null) {
+    missingData.push(`FY ${forwardFY} metric estimate`);
   }
   
-  if (year6Metric === null) {
-    missingData.push(`FY ${year6FY} metric estimate`);
+  if (nextMetric === null) {
+    missingData.push(`FY ${nextFY} metric estimate`);
   }
   
   // If missing required data, return early
@@ -128,10 +151,12 @@ export function calculate5YearIRRPreview(input: IRRInput): IRRResult {
   
   const currentPrice = input.currentPrice!;
   const exitMultiple = input.exitMultiple!;
-  const yearFraction = calculateYearFraction(input.fiscalYearEndDate!);
   
-  // Interpolate Year 5 metric: (yearFraction × Year5) + ((1 - yearFraction) × Year6)
-  const interpolatedMetric = (yearFraction * year5Metric!) + ((1 - yearFraction) * year6Metric!);
+  // Calculate year fraction for the 5-year forward date within its fiscal year
+  const yearFraction = calculateYearFractionForDate(fiveYearsFromNow, input.fiscalYearEndDate);
+  
+  // Interpolate: (yearFraction × forwardFY) + ((1 - yearFraction) × nextFY)
+  const interpolatedMetric = (yearFraction * forwardMetric!) + ((1 - yearFraction) * nextMetric!);
   
   // Calculate future price
   const futurePrice = interpolatedMetric * exitMultiple;
@@ -139,18 +164,28 @@ export function calculate5YearIRRPreview(input: IRRInput): IRRResult {
   // Calculate price CAGR: (futurePrice / currentPrice)^(1/5) - 1
   const priceCAGR = Math.pow(futurePrice / currentPrice, 1 / 5) - 1;
   
-  // Calculate total dividends for years 1-5 (with Year 5 interpolated)
+  // Calculate total dividends for the 5-year period
+  const currentFY = getCurrentFiscalYear(input.fiscalYearEndDate);
   const dividends: number[] = [];
+  
+  // Get dividends for fiscal years starting from current FY
   for (let i = 0; i < 5; i++) {
     const fy = currentFY + i;
     const div = getDividendForYear(input.estimates, fy);
     dividends.push(div ?? 0);
   }
   
-  // Interpolate Year 5 dividend
-  const year5Div = dividends[4];
-  const year6Div = getDividendForYear(input.estimates, year6FY) ?? 0;
-  dividends[4] = (yearFraction * year5Div) + ((1 - yearFraction) * year6Div);
+  // For the fiscal year that contains the 5-year forward date, interpolate
+  if (forwardFY >= currentFY && forwardFY < currentFY + 5) {
+    const forwardDiv = getDividendForYear(input.estimates, forwardFY) ?? 0;
+    const nextDiv = getDividendForYear(input.estimates, nextFY) ?? 0;
+    const interpolatedDiv = (yearFraction * forwardDiv) + ((1 - yearFraction) * nextDiv);
+    
+    const index = forwardFY - currentFY;
+    if (index >= 0 && index < 5) {
+      dividends[index] = interpolatedDiv;
+    }
+  }
   
   const totalDividends = dividends.reduce((sum, div) => sum + div, 0);
   

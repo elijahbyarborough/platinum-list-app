@@ -76,6 +76,61 @@ export function getDividendForYear(estimates: Estimate[], fiscalYear: number): n
 }
 
 /**
+ * Get the fiscal year for a specific date
+ * @param date - The date to check
+ * @param fiscalYearEndDate - Date string (YYYY-MM-DD) when fiscal year ends
+ * @returns The fiscal year number for that date
+ */
+export function getFiscalYearForDate(date: Date, fiscalYearEndDate: string): number {
+  const checkDate = new Date(date);
+  checkDate.setHours(0, 0, 0, 0);
+  
+  const fye = new Date(fiscalYearEndDate);
+  fye.setHours(0, 0, 0, 0);
+  
+  // Create the FYE date in the same year as the check date
+  const fyeThisYear = new Date(checkDate.getFullYear(), fye.getMonth(), fye.getDate());
+  
+  // If we've passed this year's FYE, we're in the next fiscal year
+  if (checkDate > fyeThisYear) {
+    return checkDate.getFullYear() + 1;
+  }
+  
+  return checkDate.getFullYear();
+}
+
+/**
+ * Calculate the year fraction for a specific date within its fiscal year
+ * @param date - The date to check
+ * @param fiscalYearEndDate - Date string (YYYY-MM-DD) when fiscal year ends
+ * @returns Year fraction (0-1), where 1.0 = start of fiscal year, 0.0 = end of fiscal year
+ */
+export function calculateYearFractionForDate(date: Date, fiscalYearEndDate: string): number {
+  const checkDate = new Date(date);
+  checkDate.setHours(0, 0, 0, 0);
+  
+  const fye = new Date(fiscalYearEndDate);
+  fye.setHours(0, 0, 0, 0);
+  
+  // Get the fiscal year for this date
+  const fiscalYear = getFiscalYearForDate(checkDate, fiscalYearEndDate);
+  
+  // Calculate the start of this fiscal year (FYE of previous year)
+  const fiscalYearStart = new Date(fiscalYear - 1, fye.getMonth(), fye.getDate());
+  fiscalYearStart.setDate(fiscalYearStart.getDate() + 1); // Day after FYE = start of new FY
+  
+  // Calculate the end of this fiscal year
+  const fiscalYearEnd = new Date(fiscalYear, fye.getMonth(), fye.getDate());
+  
+  // Calculate days from start of FY to check date
+  const daysFromStart = Math.ceil((checkDate.getTime() - fiscalYearStart.getTime()) / (1000 * 60 * 60 * 24));
+  const daysInYear = Math.ceil((fiscalYearEnd.getTime() - fiscalYearStart.getTime()) / (1000 * 60 * 60 * 24));
+  
+  // Return fraction remaining (1.0 = start of year, 0.0 = end of year)
+  return Math.max(0, Math.min(1, 1 - (daysFromStart / daysInYear)));
+}
+
+/**
  * Generate an array of fiscal years starting from a base year
  * @param startYear - The first fiscal year
  * @param count - Number of years to generate
