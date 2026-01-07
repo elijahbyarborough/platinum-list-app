@@ -5,103 +5,106 @@ A full-stack web application for tracking expected returns on a watchlist of sto
 ## Tech Stack
 
 - **Frontend:** React 18 + TypeScript + Vite + shadcn/ui + Tailwind CSS
-- **Backend:** Node.js + Express + TypeScript
-- **Database:** SQLite (easily migratable to PostgreSQL)
+- **Backend:** Vercel Serverless Functions
+- **Database:** Vercel Postgres (PostgreSQL)
 - **Stock Price API:** Yahoo Finance (via `yahoo-finance2` package)
+- **Hosting:** Vercel
 
 ## Project Structure
 
 ```
 Platinum-List-App/
-├── client/          # React frontend application
-├── server/          # Express backend API
-├── database.sqlite  # SQLite database (created on first run)
-└── SPEC.md          # Detailed specification
+├── api/                    # Vercel Serverless Functions
+│   ├── companies/          # Company CRUD endpoints
+│   ├── prices/             # Price refresh endpoints
+│   ├── cron/               # Scheduled jobs
+│   └── *.ts                # Other API endpoints
+├── lib/                    # Shared server utilities
+│   ├── models/             # Database models
+│   ├── services/           # External services (Yahoo Finance)
+│   ├── utils/              # IRR calculator, fiscal year utils
+│   ├── db.ts               # Database connection
+│   └── schema.sql          # PostgreSQL schema
+├── src/                    # React frontend
+│   ├── components/         # UI components
+│   ├── pages/              # Page components
+│   ├── utils/              # Client utilities
+│   └── types/              # TypeScript types
+├── vercel.json             # Vercel configuration
+└── package.json
 ```
 
-## Setup Instructions
+## Deployment to Vercel
 
 ### Prerequisites
 
-- Node.js 18+ and npm
-- Git
+- [Vercel account](https://vercel.com) (Pro plan recommended for extended timeouts)
+- [Vercel CLI](https://vercel.com/cli) installed: `npm i -g vercel`
 
-### Installation
+### Step 1: Connect Repository
 
-1. **Clone the repository** (if applicable)
+```bash
+# Link your project to Vercel
+vercel link
+```
 
-2. **Install server dependencies:**
-   ```bash
-   cd server
-   npm install
-   ```
+### Step 2: Add Vercel Postgres
 
-3. **Install client dependencies:**
-   ```bash
-   cd ../client
-   npm install
-   ```
+1. Go to your [Vercel Dashboard](https://vercel.com/dashboard)
+2. Select your project → **Storage** tab
+3. Click **Create Database** → **Postgres**
+4. Follow the setup wizard
+5. Environment variables will be automatically configured
 
-### Running the Application
+### Step 3: Initialize Database
 
-1. **Start the backend server:**
-   ```bash
-   cd server
-   npm run dev
-   ```
-   The server will start on `http://localhost:3001` and automatically initialize the database on first run.
+After creating the Postgres database, run the schema:
 
-2. **Start the frontend development server:**
-   ```bash
-   cd client
-   npm run dev
-   ```
-   The client will start on `http://localhost:3000` and proxy API requests to the backend on port 3001.
+1. Go to Vercel Dashboard → Storage → Your Database → **Query**
+2. Copy and paste the contents of `lib/schema.sql`
+3. Click **Run Query**
 
-3. **Open your browser:**
-   Navigate to `http://localhost:3000`
+### Step 4: Deploy
 
-## Usage
+```bash
+# Deploy to production
+vercel --prod
+```
 
-### Adding a Company
+### Step 5: Upgrade to Pro (Recommended)
 
-1. Click "Add New Company" on the dashboard
-2. Enter the ticker symbol (e.g., "AAPL")
-3. The company name will be auto-fetched from Yahoo Finance
-4. Select the fiscal year end date
-5. Choose the metric type (EPS, FCFPS, etc.)
-6. Select the analyst initials
-7. Enter the 5-year exit multiple
-8. Paste estimates from Excel:
-   - Copy a row of metrics from Excel (up to 11 values, tab-separated)
-   - Click in the "Metrics" row of the estimates table
-   - Paste (Cmd+V / Ctrl+V)
-   - Repeat for dividends row
-9. Click "Save Company"
+For extended function timeouts (60+ seconds) and cron jobs:
+- Vercel Dashboard → Settings → Billing → Upgrade to Pro
 
-### Editing a Company
+## Local Development
 
-1. Click on any company row in the dashboard table
-2. Make your changes
-3. Click "Save Company"
+### Setup
 
-### Refreshing Stock Prices
+```bash
+# Install dependencies
+npm install
 
-1. Click "Refresh Prices" on the dashboard
-2. Prices will be updated for all companies from Yahoo Finance
+# Start the development server
+npm run dev
+```
 
-### Sorting
+The frontend runs on `http://localhost:3000`.
 
-Click on any column header to sort by that field. Click again to reverse the sort order.
+**Note:** For local development, you'll need to either:
+1. Set up a local PostgreSQL database and configure `POSTGRES_URL`
+2. Use Vercel's development features: `vercel dev`
 
-## Features
+### Using Vercel Dev (Recommended)
 
-- **Excel Paste Support:** Seamlessly paste tab-separated values from Excel into the estimates table
-- **Fiscal Year Roll-Forward:** Automatically handles fiscal year transitions
-- **IRR Calculation:** Calculates 5-year expected returns with partial year interpolation
-- **Dynamic Column Headers:** Estimates table columns update based on fiscal year end date
-- **Price Tracking:** Manual price refresh from Yahoo Finance API
-- **Submission Logging:** All submissions are logged with analyst initials and timestamps
+```bash
+# Pull environment variables from Vercel
+vercel env pull .env.local
+
+# Start local development with Vercel
+vercel dev
+```
+
+This runs the frontend and API functions locally with your production database.
 
 ## API Endpoints
 
@@ -115,54 +118,48 @@ Click on any column header to sort by that field. Click again to reverse the sor
 
 - `POST /api/prices/refresh-all` - Refresh prices for all companies
 - `POST /api/companies/:ticker/refresh-price` - Refresh single company price
+- `GET /api/companies/:ticker/quote` - Get stock quote
+
+### Other
+
+- `GET /api/search?q=AAPL` - Search ticker symbols
+- `GET /api/submission-logs` - Get submission history
+- `GET /api/edit-history` - Get edit comparisons
+
+### Cron Jobs
+
+- `GET /api/cron/refresh-prices` - Automated daily price refresh (9 AM ET, weekdays)
 
 ## Environment Variables
 
-Create a `.env` file in the `server` directory (optional):
+When using Vercel Postgres, these are automatically configured:
+- `POSTGRES_URL` - Database connection string
+- `POSTGRES_URL_NON_POOLING` - For migrations
 
-```
-PORT=3001
-```
+Optional:
+- `CRON_SECRET` - Secure cron endpoint authentication
 
-Create a `.env` file in the `client` directory (optional):
+## Features
 
-```
-VITE_API_URL=http://localhost:3001/api
-```
+- **Excel Paste Support:** Seamlessly paste tab-separated values from Excel into the estimates table
+- **Fiscal Year Roll-Forward:** Automatically handles fiscal year transitions
+- **IRR Calculation:** Calculates 5-year expected returns with partial year interpolation
+- **Dynamic Column Headers:** Estimates table columns update based on fiscal year end date
+- **Price Tracking:** Manual and automatic price refresh from Yahoo Finance
+- **Submission Logging:** All submissions are logged with analyst initials and timestamps
+- **Automated Cron Job:** Daily price refresh at market open (Pro plan required)
 
-## Database
+## Upgrading from Local Development
 
-The SQLite database (`database.sqlite`) is automatically created in the project root on first server run. The schema includes:
+If migrating from the previous SQLite-based local setup:
 
-- **companies** - Company data with 11 years of metrics and dividends
-- **exit_multiples** - Exit multiples by time horizon
-- **submission_logs** - Historical submission snapshots
-
-## Development
-
-### Backend Scripts
-
-- `npm run dev` - Start development server with auto-reload
-- `npm run build` - Build TypeScript to JavaScript
-- `npm start` - Run production build
-
-### Frontend Scripts
-
-- `npm run dev` - Start development server
-- `npm run build` - Build for production
-- `npm run preview` - Preview production build
+1. Export your data from SQLite
+2. Transform the data to PostgreSQL format
+3. Import into Vercel Postgres using the Query console
 
 ## Notes
 
-- Stock prices are only refreshed manually (not automatic)
+- Function timeout: 60 seconds (Pro plan), 10 seconds (Hobby plan)
+- Cron jobs require Vercel Pro plan
+- Stock prices refresh daily at 9 AM ET (14:00 UTC) on weekdays
 - Companies need at least 6 years of estimates for 5-year IRR calculation
-- NULL/blank values are displayed as empty cells, never as "NULL" or "N/A"
-- The app is optimized for desktop use
-
-## Future Enhancements
-
-- Bull/Base/Bear scenario support (structure in place)
-- Historical tracking UI (logging in place)
-- Multiple time horizon views (3, 5, 10 years)
-- Web deployment configuration
-
