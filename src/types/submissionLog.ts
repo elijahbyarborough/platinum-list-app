@@ -1,5 +1,5 @@
 export interface SubmissionLogEntry {
-  id?: number;
+  id: number;
   ticker: string;
   company_name: string;
   price_at_submission: number | null;

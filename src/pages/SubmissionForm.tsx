@@ -10,7 +10,7 @@ import { TickerAutocomplete } from '@/components/submission/TickerAutocomplete';
 import { FiscalYearPicker } from '@/components/submission/FiscalYearPicker';
 import { IRRPreview } from '@/components/submission/IRRPreview';
 import { api } from '@/utils/api';
-import { CompanyFormData, MetricType, AnalystInitials } from '@/types/company';
+import { CompanyFormData, MetricType, AnalystInitials, EstimateFormData } from '@/types/company';
 import { formatPrice, formatDateTime } from '@/utils/formatting';
 
 export default function SubmissionForm() {
@@ -20,16 +20,16 @@ export default function SubmissionForm() {
   const [stockPrice, setStockPrice] = useState<number | null>(null);
   const [priceLastUpdated, setPriceLastUpdated] = useState<string | null>(null);
   const [refreshingPrice, setRefreshingPrice] = useState(false);
+  const [submissionSuccess, setSubmissionSuccess] = useState<string | null>(null);
 
   const [formData, setFormData] = useState<CompanyFormData>({
     ticker: ticker?.toUpperCase() || '',
     company_name: '',
     fiscal_year_end_date: '',
-    metric_type: 'EPS',
+    metric_type: 'GAAP EPS',
     analyst_initials: 'EY',
     exit_multiple_5yr: null,
-    metrics: Array(11).fill(null),
-    dividends: Array(11).fill(null),
+    estimates: [],
   });
 
   // Load existing company data if editing
@@ -39,17 +39,15 @@ export default function SubmissionForm() {
     enabled: !!ticker,
   });
 
+  // Load original submission data to get the locked price
+  const { data: submissionData } = useQuery({
+    queryKey: ['submission', ticker],
+    queryFn: () => api.getSubmissionForEdit(ticker!),
+    enabled: !!ticker,
+  });
+
   useEffect(() => {
     if (existingCompany) {
-      // Convert fy1-fy11 format to arrays
-      const metrics: (number | null)[] = [];
-      const dividends: (number | null)[] = [];
-
-      for (let i = 1; i <= 11; i++) {
-        metrics.push(existingCompany[`fy${i}_metric` as keyof typeof existingCompany] as number | null);
-        dividends.push(existingCompany[`fy${i}_div` as keyof typeof existingCompany] as number | null);
-      }
-
       setFormData({
         ticker: existingCompany.ticker,
         company_name: existingCompany.company_name,
@@ -57,15 +55,18 @@ export default function SubmissionForm() {
         metric_type: existingCompany.metric_type,
         analyst_initials: existingCompany.analyst_initials,
         exit_multiple_5yr: existingCompany.exit_multiple_5yr || null,
-        metrics,
-        dividends,
+        estimates: existingCompany.estimates || [],
       });
-
-      // Set stock price from existing company
-      setStockPrice(existingCompany.current_stock_price);
-      setPriceLastUpdated(existingCompany.price_last_updated);
     }
   }, [existingCompany]);
+
+  // Set price from original submission when editing (locked price)
+  useEffect(() => {
+    if (submissionData && ticker) {
+      setStockPrice(submissionData.price_at_submission);
+      setPriceLastUpdated(submissionData.price_submitted_at);
+    }
+  }, [submissionData, ticker]);
 
   const handleTickerSelect = async (selectedTicker: string, companyName: string) => {
     const normalizedTicker = selectedTicker.toUpperCase();
@@ -73,12 +74,6 @@ export default function SubmissionForm() {
       ...prev,
       ticker: normalizedTicker,
       company_name: companyName,
-    }));
-    
-    // Clear fiscal year end date first so it will update
-    setFormData((prev) => ({
-      ...prev,
-      fiscal_year_end_date: '',
     }));
     
     // Fetch stock price and fiscal year end for the selected ticker
@@ -118,7 +113,18 @@ export default function SubmissionForm() {
     mutationFn: api.createCompany,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['companies'] });
-      navigate('/dashboard');
+      const now = new Date();
+      const timeString = now.toLocaleTimeString('en-US', { 
+        hour: 'numeric', 
+        minute: '2-digit',
+        hour12: true 
+      });
+      const dateString = now.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric'
+      });
+      setSubmissionSuccess(`Submission accepted at ${timeString} on ${dateString}`);
     },
   });
 
@@ -130,12 +136,20 @@ export default function SubmissionForm() {
       return;
     }
 
-    // When editing, ensure we don't update the stock price - it should remain frozen at submission time
-    const submissionData = ticker 
-      ? { ...formData, current_stock_price: undefined }
-      : formData;
+    // Prepare submission data
+    // For new submissions, include the stock price
+    // For edits, don't send price - it stays locked to original submission
+    const submissionData = {
+      ...formData,
+      current_stock_price: ticker ? undefined : stockPrice,
+      price_last_updated: ticker ? undefined : priceLastUpdated,
+    };
 
     createCompanyMutation.mutate(submissionData);
+  };
+
+  const handleEstimatesChange = (estimates: EstimateFormData[]) => {
+    setFormData(prev => ({ ...prev, estimates }));
   };
 
   return (
@@ -238,7 +252,7 @@ export default function SubmissionForm() {
               <div>
                 <FiscalYearPicker
                   value={formData.fiscal_year_end_date}
-                  onChange={(value) => setFormData({ ...formData, fiscal_year_end_date: value })}
+                  onChange={(date) => setFormData({ ...formData, fiscal_year_end_date: date, estimates: [] })}
                   required
                 />
               </div>
@@ -264,11 +278,13 @@ export default function SubmissionForm() {
                   onChange={(e) => setFormData({ ...formData, metric_type: e.target.value as MetricType })}
                   required
                 >
-                  <option value="EPS">EPS</option>
+                  <option value="GAAP EPS">GAAP EPS</option>
+                  <option value="Norm. EPS">Norm. EPS</option>
+                  <option value="Mgmt. EPS">Mgmt. EPS</option>
                   <option value="FCFPS">FCFPS</option>
-                  <option value="Distributable Earnings">Distributable Earnings</option>
-                  <option value="P/B">P/B</option>
-                  <option value="P/NAV">P/NAV</option>
+                  <option value="DEPS">DEPS</option>
+                  <option value="NAVPS">NAVPS</option>
+                  <option value="BVPS">BVPS</option>
                 </Select>
               </div>
 
@@ -318,10 +334,8 @@ export default function SubmissionForm() {
             
             <EstimatesTable
               fiscalYearEndDate={formData.fiscal_year_end_date}
-              metrics={formData.metrics}
-              dividends={formData.dividends}
-              onMetricsChange={(metrics) => setFormData({ ...formData, metrics })}
-              onDividendsChange={(dividends) => setFormData({ ...formData, dividends })}
+              estimates={formData.estimates}
+              onEstimatesChange={handleEstimatesChange}
             />
           </section>
 
@@ -330,8 +344,7 @@ export default function SubmissionForm() {
             currentPrice={stockPrice}
             exitMultiple={formData.exit_multiple_5yr}
             fiscalYearEndDate={formData.fiscal_year_end_date}
-            metrics={formData.metrics}
-            dividends={formData.dividends}
+            estimates={formData.estimates}
           />
 
           {/* Action Buttons */}
@@ -340,19 +353,19 @@ export default function SubmissionForm() {
               type="submit" 
               disabled={createCompanyMutation.isPending}
               size="lg"
-              className="min-w-[160px]"
+              className="min-w-[180px]"
             >
               {createCompanyMutation.isPending ? (
                 <span className="flex items-center gap-2">
                   <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                  Saving...
+                  Submitting...
                 </span>
               ) : (
                 <span className="flex items-center gap-2">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                   </svg>
-                  Save Company
+                  Submit Estimates
                 </span>
               )}
             </Button>
@@ -365,6 +378,15 @@ export default function SubmissionForm() {
               Cancel
             </Button>
           </div>
+          
+          {submissionSuccess && (
+            <div className="mt-4 flex items-center gap-2 text-sm text-emerald-600 dark:text-emerald-400">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              {submissionSuccess}
+            </div>
+          )}
         </form>
       </div>
     </div>

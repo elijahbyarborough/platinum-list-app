@@ -1,4 +1,5 @@
-import { useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { SubmissionLogEntry } from '@/types/submissionLog';
 import { api } from '@/utils/api';
@@ -20,10 +21,25 @@ function getIRRColorClass(irr: number | null | undefined): string {
 
 export default function SubmissionLog() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
+
   const { data: logs = [], isLoading, error } = useQuery({
     queryKey: ['submissionLogs'],
     queryFn: api.getSubmissionLogs,
   });
+
+  const deleteMutation = useMutation({
+    mutationFn: api.deleteSubmissionLog,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['submissionLogs'] });
+      setDeleteConfirm(null);
+    },
+  });
+
+  const handleDelete = (id: number) => {
+    deleteMutation.mutate(id);
+  };
 
   if (isLoading) {
     return (
@@ -69,7 +85,7 @@ export default function SubmissionLog() {
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
             </svg>
-            See All Edits
+            See All Changes
           </Button>
         </div>
 
@@ -168,11 +184,8 @@ export default function SubmissionLog() {
                           <span className="text-muted-foreground">—</span>
                         )}
                       </td>
-                      <td 
-                        className="text-muted-foreground text-sm"
-                        title={log.submitted_at ? formatDateTime(log.submitted_at) : ''}
-                      >
-                        {formatDate(log.submitted_at) || '—'}
+                      <td className="text-muted-foreground text-sm">
+                        {formatDateTime(log.submitted_at) || '—'}
                       </td>
                       <td>
                         <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-secondary text-xs font-medium">
@@ -180,20 +193,63 @@ export default function SubmissionLog() {
                         </span>
                       </td>
                       <td className="text-right">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            navigate(`/edit/${log.ticker}`);
-                          }}
-                          className="gap-2"
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                          </svg>
-                          Edit
-                        </Button>
+                        <div className="flex items-center justify-end gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              navigate(`/edit/${log.ticker}`);
+                            }}
+                            className="gap-2"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                            </svg>
+                            Edit
+                          </Button>
+                          {deleteConfirm === log.id ? (
+                            <div className="flex items-center gap-1">
+                              <Button
+                                variant="destructive"
+                                size="sm"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDelete(log.id);
+                                }}
+                                disabled={deleteMutation.isPending}
+                              >
+                                {deleteMutation.isPending ? 'Deleting...' : 'Confirm'}
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setDeleteConfirm(null);
+                                }}
+                                disabled={deleteMutation.isPending}
+                              >
+                                Cancel
+                              </Button>
+                            </div>
+                          ) : (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setDeleteConfirm(log.id);
+                              }}
+                              className="gap-2 text-destructive hover:text-destructive hover:bg-destructive/10"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                              </svg>
+                              Delete
+                            </Button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}

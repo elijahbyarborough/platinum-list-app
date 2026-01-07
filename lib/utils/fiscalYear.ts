@@ -1,125 +1,86 @@
 /**
- * Fiscal Year utilities for handling fiscal year roll-forward logic
+ * Fiscal Year utilities for handling fiscal year calculations
  */
 
+import { Estimate } from '../db.js';
+
 /**
- * Calculate the year fraction remaining in the current fiscal year
- * @param fyeDate - Fiscal year end date (e.g., "2026-12-31")
- * @returns Year fraction (0-1), where 1.0 = start of fiscal year, 0.0 = end of fiscal year
+ * Get the current fiscal year based on fiscal year end date
+ * @param fiscalYearEndDate - Date string (YYYY-MM-DD) when fiscal year ends
+ * @returns The current fiscal year number
  */
-export function calculateYearFraction(fyeDate: string): number {
+export function getCurrentFiscalYear(fiscalYearEndDate: string): number {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   
-  const fye = new Date(fyeDate);
+  const fye = new Date(fiscalYearEndDate);
   fye.setHours(0, 0, 0, 0);
   
-  // Calculate days remaining until FYE
-  const daysUntilFYE = Math.ceil((fye.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+  // Create this year's FYE date
+  const fyeThisYear = new Date(today.getFullYear(), fye.getMonth(), fye.getDate());
   
-  // If we've passed the FYE, calculate for the next fiscal year
-  if (daysUntilFYE < 0) {
-    // Roll forward to next fiscal year
-    const nextFYE = new Date(fye);
-    nextFYE.setFullYear(nextFYE.getFullYear() + 1);
-    
-    const daysUntilNextFYE = Math.ceil((nextFYE.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-    return Math.max(0, Math.min(1, daysUntilNextFYE / 365));
+  // If we've passed this year's FYE, we're in the next fiscal year
+  if (today > fyeThisYear) {
+    return today.getFullYear() + 1;
   }
+  
+  return today.getFullYear();
+}
+
+/**
+ * Calculate the year fraction remaining in the current fiscal year
+ * @param fiscalYearEndDate - Date string (YYYY-MM-DD) when fiscal year ends
+ * @returns Year fraction (0-1), where 1.0 = start of fiscal year, 0.0 = end of fiscal year
+ */
+export function calculateYearFraction(fiscalYearEndDate: string): number {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  
+  const fye = new Date(fiscalYearEndDate);
+  fye.setHours(0, 0, 0, 0);
+  
+  // Create this year's and next year's FYE dates
+  let targetFYE = new Date(today.getFullYear(), fye.getMonth(), fye.getDate());
+  
+  // If we've passed this year's FYE, use next year's
+  if (today > targetFYE) {
+    targetFYE = new Date(today.getFullYear() + 1, fye.getMonth(), fye.getDate());
+  }
+  
+  const daysUntilFYE = Math.ceil((targetFYE.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
   
   // Normalize to 0-1 range (365 days in a year)
   return Math.max(0, Math.min(1, daysUntilFYE / 365));
 }
 
 /**
- * Determine which stored fiscal year (fy1-fy11) corresponds to a given target year
- * @param fyeDate - Fiscal year end date (e.g., "2026-12-31")
- * @param targetYearOffset - Years forward from the base fiscal year (0 = current FY, 1 = next FY, etc.)
- * @returns The stored fiscal year index (1-11) or null if beyond stored range
+ * Get metric value for a specific fiscal year from estimates array
+ * @param estimates - Array of estimates with fiscal_year, metric_value, dividend_value
+ * @param fiscalYear - The fiscal year to look up
+ * @returns The metric value or null if not found
  */
-export function getStoredYearIndex(fyeDate: string, targetYearOffset: number): number | null {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  
-  const fye = new Date(fyeDate);
-  fye.setHours(0, 0, 0, 0);
-  
-  // If today has passed the FYE, roll forward
-  const daysUntilFYE = Math.ceil((fye.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-  
-  let baseYearIndex = 1; // fy1 is always the first stored year
-  
-  if (daysUntilFYE < 0) {
-    // We've passed the FYE, so fy1 is now the next fiscal year
-    // The stored data needs to be shifted
-    const yearsPassed = Math.floor(Math.abs(daysUntilFYE) / 365) + 1;
-    baseYearIndex = yearsPassed + 1;
-  }
-  
-  const targetIndex = baseYearIndex + targetYearOffset;
-  
-  if (targetIndex < 1 || targetIndex > 11) {
-    return null;
-  }
-  
-  return targetIndex;
+export function getMetricForYear(estimates: Estimate[], fiscalYear: number): number | null {
+  const estimate = estimates.find(e => e.fiscal_year === fiscalYear);
+  return estimate?.metric_value ?? null;
 }
 
 /**
- * Get the fiscal year number (e.g., FY 2026, FY 2027) for a given stored year index
- * @param fyeDate - Fiscal year end date (e.g., "2026-12-31")
- * @param storedYearIndex - The stored fiscal year index (1-11)
- * @returns The fiscal year number (e.g., 2026, 2027) or null if invalid
+ * Get dividend value for a specific fiscal year from estimates array
+ * @param estimates - Array of estimates with fiscal_year, metric_value, dividend_value
+ * @param fiscalYear - The fiscal year to look up
+ * @returns The dividend value or null if not found
  */
-export function getFiscalYearNumber(fyeDate: string, storedYearIndex: number): number | null {
-  if (storedYearIndex < 1 || storedYearIndex > 11) {
-    return null;
-  }
-  
-  const fye = new Date(fyeDate);
-  const baseYear = fye.getFullYear();
-  
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  
-  const daysUntilFYE = Math.ceil((fye.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-  
-  if (daysUntilFYE < 0) {
-    // We've passed the FYE, so shift forward
-    const yearsPassed = Math.floor(Math.abs(daysUntilFYE) / 365) + 1;
-    const shift = yearsPassed;
-    return baseYear + storedYearIndex - shift;
-  }
-  
-  // Normal case: storedYearIndex 1 = baseYear, 2 = baseYear+1, etc.
-  return baseYear + storedYearIndex - 1;
+export function getDividendForYear(estimates: Estimate[], fiscalYear: number): number | null {
+  const estimate = estimates.find(e => e.fiscal_year === fiscalYear);
+  return estimate?.dividend_value ?? null;
 }
 
 /**
- * Extract metric value for a specific year from stored fiscal year data
- * @param company - Company object with fy1_metric through fy11_metric
- * @param yearOffset - Years forward from current fiscal year (0-5 for 5-year IRR)
- * @returns The metric value or null
+ * Generate an array of fiscal years starting from a base year
+ * @param startYear - The first fiscal year
+ * @param count - Number of years to generate
+ * @returns Array of fiscal year numbers
  */
-export function getMetricForYear(company: any, yearOffset: number): number | null {
-  const storedIndex = getStoredYearIndex(company.fiscal_year_end_date, yearOffset);
-  if (!storedIndex) return null;
-  
-  const metricKey = `fy${storedIndex}_metric` as keyof typeof company;
-  return company[metricKey] ?? null;
+export function generateFiscalYears(startYear: number, count: number): number[] {
+  return Array.from({ length: count }, (_, i) => startYear + i);
 }
-
-/**
- * Extract dividend value for a specific year from stored fiscal year data
- * @param company - Company object with fy1_div through fy11_div
- * @param yearOffset - Years forward from current fiscal year (0-5 for 5-year IRR)
- * @returns The dividend value or null
- */
-export function getDividendForYear(company: any, yearOffset: number): number | null {
-  const storedIndex = getStoredYearIndex(company.fiscal_year_end_date, yearOffset);
-  if (!storedIndex) return null;
-  
-  const divKey = `fy${storedIndex}_div` as keyof typeof company;
-  return company[divKey] ?? null;
-}
-

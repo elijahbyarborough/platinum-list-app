@@ -5,7 +5,7 @@ const yahooFinance = new YahooFinance();
 export interface StockQuote {
   price: number | null;
   companyName: string | null;
-  fiscalYearEnd?: string | null;
+  fiscalYearEnd?: string | null; // Date string YYYY-MM-DD
 }
 
 export interface SearchResult {
@@ -82,6 +82,7 @@ export async function getQuote(ticker: string): Promise<StockQuote> {
 
 /**
  * Fetch fiscal year end date from quoteSummary
+ * @returns Next fiscal year end date as YYYY-MM-DD string
  */
 export async function getFiscalYearEnd(ticker: string): Promise<string | null> {
   try {
@@ -157,4 +158,3 @@ export async function getCompleteQuote(ticker: string): Promise<StockQuote> {
     };
   }
 }
-

@@ -2,12 +2,19 @@
  * Client-side IRR calculator for preview purposes
  */
 
+import { getCurrentFiscalYear } from './fiscalYear';
+
+interface EstimateData {
+  fiscal_year: number;
+  metric_value: number | null;
+  dividend_value: number | null;
+}
+
 interface IRRInput {
   currentPrice: number | null;
   exitMultiple: number | null;
   fiscalYearEndDate: string;
-  metrics: (number | null)[];
-  dividends: (number | null)[];
+  estimates: EstimateData[];
 }
 
 interface IRRResult {
@@ -22,26 +29,41 @@ interface IRRResult {
 /**
  * Calculate year fraction remaining in current fiscal year
  */
-function calculateYearFraction(fyeDate: string): number {
+function calculateYearFraction(fiscalYearEndDate: string): number {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   
-  const fye = new Date(fyeDate);
+  const fye = new Date(fiscalYearEndDate);
   fye.setHours(0, 0, 0, 0);
   
-  // Calculate days remaining until FYE
-  const daysUntilFYE = Math.ceil((fye.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+  // Create this year's and next year's FYE dates
+  let targetFYE = new Date(today.getFullYear(), fye.getMonth(), fye.getDate());
   
-  // If we've passed the FYE, calculate for the next fiscal year
-  if (daysUntilFYE < 0) {
-    const nextFYE = new Date(fye);
-    nextFYE.setFullYear(nextFYE.getFullYear() + 1);
-    
-    const daysUntilNextFYE = Math.ceil((nextFYE.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-    return Math.max(0, Math.min(1, daysUntilNextFYE / 365));
+  // If we've passed this year's FYE, use next year's
+  if (today > targetFYE) {
+    targetFYE = new Date(today.getFullYear() + 1, fye.getMonth(), fye.getDate());
   }
   
+  const daysUntilFYE = Math.ceil((targetFYE.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+  
+  // Normalize to 0-1 range (365 days in a year)
   return Math.max(0, Math.min(1, daysUntilFYE / 365));
+}
+
+/**
+ * Get metric value for a specific fiscal year from estimates array
+ */
+function getMetricForYear(estimates: EstimateData[], fiscalYear: number): number | null {
+  const estimate = estimates.find(e => e.fiscal_year === fiscalYear);
+  return estimate?.metric_value ?? null;
+}
+
+/**
+ * Get dividend value for a specific fiscal year from estimates array
+ */
+function getDividendForYear(estimates: EstimateData[], fiscalYear: number): number | null {
+  const estimate = estimates.find(e => e.fiscal_year === fiscalYear);
+  return estimate?.dividend_value ?? null;
 }
 
 /**
@@ -63,16 +85,33 @@ export function calculate5YearIRRPreview(input: IRRInput): IRRResult {
     missingData.push('Fiscal year end date');
   }
   
-  // Need Year 5 (index 4) and Year 6 (index 5) metrics for interpolation
-  const year5Metric = input.metrics[4];
-  const year6Metric = input.metrics[5];
+  // Calculate current fiscal year
+  const currentFY = input.fiscalYearEndDate ? getCurrentFiscalYear(input.fiscalYearEndDate) : null;
   
-  if (year5Metric === null || year5Metric === undefined) {
-    missingData.push('Year 5 metric estimate');
+  if (!currentFY) {
+    return {
+      irr: null,
+      priceCAGR: null,
+      dividendYield: null,
+      futurePrice: null,
+      interpolatedMetric: null,
+      missingData,
+    };
   }
   
-  if (year6Metric === null || year6Metric === undefined) {
-    missingData.push('Year 6 metric estimate');
+  // Need Year 5 (currentFY + 4) and Year 6 (currentFY + 5) metrics for interpolation
+  const year5FY = currentFY + 4;
+  const year6FY = currentFY + 5;
+  
+  const year5Metric = getMetricForYear(input.estimates, year5FY);
+  const year6Metric = getMetricForYear(input.estimates, year6FY);
+  
+  if (year5Metric === null) {
+    missingData.push(`FY ${year5FY} metric estimate`);
+  }
+  
+  if (year6Metric === null) {
+    missingData.push(`FY ${year6FY} metric estimate`);
   }
   
   // If missing required data, return early
@@ -89,7 +128,7 @@ export function calculate5YearIRRPreview(input: IRRInput): IRRResult {
   
   const currentPrice = input.currentPrice!;
   const exitMultiple = input.exitMultiple!;
-  const yearFraction = calculateYearFraction(input.fiscalYearEndDate);
+  const yearFraction = calculateYearFraction(input.fiscalYearEndDate!);
   
   // Interpolate Year 5 metric: (yearFraction × Year5) + ((1 - yearFraction) × Year6)
   const interpolatedMetric = (yearFraction * year5Metric!) + ((1 - yearFraction) * year6Metric!);
@@ -103,12 +142,14 @@ export function calculate5YearIRRPreview(input: IRRInput): IRRResult {
   // Calculate total dividends for years 1-5 (with Year 5 interpolated)
   const dividends: number[] = [];
   for (let i = 0; i < 5; i++) {
-    dividends.push(input.dividends[i] ?? 0);
+    const fy = currentFY + i;
+    const div = getDividendForYear(input.estimates, fy);
+    dividends.push(div ?? 0);
   }
   
   // Interpolate Year 5 dividend
   const year5Div = dividends[4];
-  const year6Div = input.dividends[5] ?? 0;
+  const year6Div = getDividendForYear(input.estimates, year6FY) ?? 0;
   dividends[4] = (yearFraction * year5Div) + ((1 - yearFraction) * year6Div);
   
   const totalDividends = dividends.reduce((sum, div) => sum + div, 0);
@@ -128,4 +169,3 @@ export function calculate5YearIRRPreview(input: IRRInput): IRRResult {
     missingData: [],
   };
 }
-

@@ -3,12 +3,17 @@ import { calculate5YearIRRPreview } from '@/utils/irrCalculator';
 import { formatPercentage, formatPrice } from '@/utils/formatting';
 import { cn } from '@/lib/utils';
 
+interface EstimateData {
+  fiscal_year: number;
+  metric_value: number | null;
+  dividend_value: number | null;
+}
+
 interface IRRPreviewProps {
   currentPrice: number | null;
   exitMultiple: number | null;
   fiscalYearEndDate: string;
-  metrics: (number | null)[];
-  dividends: (number | null)[];
+  estimates: EstimateData[];
 }
 
 // Get IRR color class based on value
@@ -38,18 +43,16 @@ export function IRRPreview({
   currentPrice,
   exitMultiple,
   fiscalYearEndDate,
-  metrics,
-  dividends,
+  estimates,
 }: IRRPreviewProps) {
   const result = useMemo(() => {
     return calculate5YearIRRPreview({
       currentPrice,
       exitMultiple,
       fiscalYearEndDate,
-      metrics,
-      dividends,
+      estimates,
     });
-  }, [currentPrice, exitMultiple, fiscalYearEndDate, metrics, dividends]);
+  }, [currentPrice, exitMultiple, fiscalYearEndDate, estimates]);
 
   const hasIRR = result.irr !== null;
 

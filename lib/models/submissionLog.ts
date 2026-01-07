@@ -61,3 +61,23 @@ export async function findAllSubmissionLogs(): Promise<SubmissionLog[]> {
   }));
 }
 
+export async function updateSubmissionLog(id: number, data: {
+  analyst_initials: AnalystInitials;
+  snapshot_data: string;
+}): Promise<SubmissionLog> {
+  const { rows } = await sql`
+    UPDATE submission_logs
+    SET analyst_initials = ${data.analyst_initials},
+        snapshot_data = ${data.snapshot_data}::jsonb,
+        submitted_at = CURRENT_TIMESTAMP
+    WHERE id = ${id}
+    RETURNING *
+  `;
+  return {
+    ...rows[0],
+    snapshot_data: typeof rows[0].snapshot_data === 'string' 
+      ? rows[0].snapshot_data 
+      : JSON.stringify(rows[0].snapshot_data)
+  };
+}
+

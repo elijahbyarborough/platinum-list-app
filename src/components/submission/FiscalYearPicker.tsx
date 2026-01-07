@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select } from '@/components/ui/select';
+import { getCurrentFiscalYear } from '@/utils/fiscalYear';
 
 interface FiscalYearPickerProps {
   value: string;
@@ -12,40 +12,16 @@ interface FiscalYearPickerProps {
 export function FiscalYearPicker({ value, onChange, required }: FiscalYearPickerProps) {
   const [userHasEdited, setUserHasEdited] = useState(false);
 
-  // Generate fiscal year options (current year through +10 years)
-  const fiscalYearOptions = useMemo(() => {
-    const currentYear = new Date().getFullYear();
-    const years: number[] = [];
-    for (let i = 0; i <= 10; i++) {
-      years.push(currentYear + i);
-    }
-    return years;
-  }, []);
-
-  // Get the selected year from the date value
-  const selectedYear = useMemo(() => {
+  // Calculate current fiscal year based on the date
+  const currentFiscalYear = useMemo(() => {
     if (!value) return null;
-    return new Date(value).getFullYear();
+    return getCurrentFiscalYear(value);
   }, [value]);
 
   // Handle date input change - mark as user edited
   const handleDateChange = (newValue: string) => {
     setUserHasEdited(true);
     onChange(newValue);
-  };
-
-  // Handle year dropdown change - update the year while keeping month/day
-  const handleYearChange = (newYear: string) => {
-    setUserHasEdited(true);
-    const year = parseInt(newYear, 10);
-    if (!value) {
-      // Default to Dec 31 if no date is set
-      onChange(`${year}-12-31`);
-    } else {
-      const date = new Date(value);
-      date.setFullYear(year);
-      onChange(date.toISOString().split('T')[0]);
-    }
   };
 
   // Show "Estimated" if there's a value but user hasn't manually edited it
@@ -72,23 +48,17 @@ export function FiscalYearPicker({ value, onChange, required }: FiscalYearPicker
         </div>
       </div>
       <div className="space-y-2">
-        <Label htmlFor="fiscal_year">Current Fiscal Year</Label>
+        <Label htmlFor="current_fiscal_year">Current Fiscal Year</Label>
         <div className="relative">
-          <Select
-            id="fiscal_year"
-            value={selectedYear?.toString() || ''}
-            onChange={(e) => handleYearChange(e.target.value)}
-            className="h-12 pr-24"
-          >
-            <option value="" disabled>FY</option>
-            {fiscalYearOptions.map((year) => (
-              <option key={year} value={year}>
-                FY {year}
-              </option>
-            ))}
-          </Select>
+          <div className="h-12 px-4 rounded-lg bg-secondary/50 border border-border flex items-center">
+            {currentFiscalYear ? (
+              <span className="font-mono text-lg">FY {currentFiscalYear}</span>
+            ) : (
+              <span className="text-muted-foreground">—</span>
+            )}
+          </div>
           {showEstimated && (
-            <span className="absolute right-10 top-1/2 -translate-y-1/2 text-muted-foreground/70 text-xs italic pointer-events-none">
+            <span className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground/70 text-xs italic pointer-events-none">
               Estimated
             </span>
           )}

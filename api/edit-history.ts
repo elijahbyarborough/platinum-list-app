@@ -2,7 +2,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { findAllSubmissionLogs } from '../lib/models/submissionLog.js';
 import { findCompanyById } from '../lib/models/company.js';
 import { findExitMultiplesByCompanyId } from '../lib/models/exitMultiple.js';
-import { Company } from '../lib/db.js';
+import { Estimate } from '../lib/db.js';
 
 interface EditComparison {
   ticker: string;
@@ -12,17 +12,28 @@ interface EditComparison {
     analyst_initials: string;
     exit_multiple: number | null;
     metric_type: string;
-    metrics: (number | null)[];
-    dividends: (number | null)[];
+    estimates: Estimate[];
   };
   after: {
     submitted_at: string;
     analyst_initials: string;
     exit_multiple: number | null;
     metric_type: string;
-    metrics: (number | null)[];
-    dividends: (number | null)[];
+    estimates: Estimate[];
   };
+}
+
+// Helper to extract estimates from snapshot (handles both old and new formats)
+function extractEstimatesFromSnapshot(snapshot: any): Estimate[] {
+  // New format: estimates array
+  if (snapshot.estimates && Array.isArray(snapshot.estimates)) {
+    return snapshot.estimates;
+  }
+  
+  // Old format: fy1_metric, fy1_div, etc. - convert to estimates format
+  // Note: Old format used relative years, so we can't determine exact fiscal year
+  // Just return empty array for old snapshots
+  return [];
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -66,21 +77,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const beforeLog = sortedLogs[i];
         const afterLog = sortedLogs[i + 1];
         
-        const beforeCompany = JSON.parse(beforeLog.snapshot_data) as Company;
-        const afterCompany = JSON.parse(afterLog.snapshot_data) as Company;
-        
-        // Extract metrics and dividends arrays
-        const beforeMetrics: (number | null)[] = [];
-        const beforeDividends: (number | null)[] = [];
-        const afterMetrics: (number | null)[] = [];
-        const afterDividends: (number | null)[] = [];
-        
-        for (let j = 1; j <= 11; j++) {
-          beforeMetrics.push(beforeCompany[`fy${j}_metric` as keyof Company] as number | null);
-          beforeDividends.push(beforeCompany[`fy${j}_div` as keyof Company] as number | null);
-          afterMetrics.push(afterCompany[`fy${j}_metric` as keyof Company] as number | null);
-          afterDividends.push(afterCompany[`fy${j}_div` as keyof Company] as number | null);
-        }
+        const beforeSnapshot = JSON.parse(beforeLog.snapshot_data);
+        const afterSnapshot = JSON.parse(afterLog.snapshot_data);
         
         comparisons.push({
           ticker: company.ticker,
@@ -89,17 +87,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             submitted_at: beforeLog.submitted_at || '',
             analyst_initials: beforeLog.analyst_initials,
             exit_multiple: exitMultiple,
-            metric_type: beforeCompany.metric_type,
-            metrics: beforeMetrics,
-            dividends: beforeDividends,
+            metric_type: beforeSnapshot.metric_type,
+            estimates: extractEstimatesFromSnapshot(beforeSnapshot),
           },
           after: {
             submitted_at: afterLog.submitted_at || '',
             analyst_initials: afterLog.analyst_initials,
             exit_multiple: exitMultiple,
-            metric_type: afterCompany.metric_type,
-            metrics: afterMetrics,
-            dividends: afterDividends,
+            metric_type: afterSnapshot.metric_type,
+            estimates: extractEstimatesFromSnapshot(afterSnapshot),
           },
         });
       }
@@ -118,4 +114,3 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(500).json({ error: 'Failed to fetch edit history' });
   }
 }
-

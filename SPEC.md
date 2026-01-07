@@ -19,7 +19,7 @@ Build a local web application for tracking expected returns on a watchlist of st
 - ticker (string, unique)
 - company_name (string)
 - fiscal_year_end_date (date) // e.g., 2026-12-31
-- metric_type (enum: 'EPS', 'FCFPS', 'Distributable Earnings', 'P/B', 'P/NAV')
+- metric_type (enum: 'GAAP EPS', 'Norm. EPS', 'Mgmt. EPS', 'FCFPS', 'DEPS', 'NAVPS', 'BVPS')
 - current_stock_price (decimal, nullable)
 - price_last_updated (timestamp, nullable)
 - scenario (enum: 'base', 'bull', 'bear', default 'base') // for future use
@@ -27,7 +27,7 @@ Build a local web application for tracking expected returns on a watchlist of st
 - created_at (timestamp)
 - updated_at (timestamp)
 
-// 11 years of metric estimates (store NULL for blank years)
+// 8 years of metric estimates (store NULL for blank years)
 - fy1_metric (decimal, nullable)
 - fy2_metric (decimal, nullable)
 - fy3_metric (decimal, nullable)
@@ -36,11 +36,8 @@ Build a local web application for tracking expected returns on a watchlist of st
 - fy6_metric (decimal, nullable)
 - fy7_metric (decimal, nullable)
 - fy8_metric (decimal, nullable)
-- fy9_metric (decimal, nullable)
-- fy10_metric (decimal, nullable)
-- fy11_metric (decimal, nullable)
 
-// 11 years of dividend per share estimates (store NULL for blank years)
+// 8 years of dividend per share estimates (store NULL for blank years)
 - fy1_div (decimal, nullable)
 - fy2_div (decimal, nullable)
 - fy3_div (decimal, nullable)
@@ -49,9 +46,6 @@ Build a local web application for tracking expected returns on a watchlist of st
 - fy6_div (decimal, nullable)
 - fy7_div (decimal, nullable)
 - fy8_div (decimal, nullable)
-- fy9_div (decimal, nullable)
-- fy10_div (decimal, nullable)
-- fy11_div (decimal, nullable)
 ```
 
 NULL values represent years where the user did not provide estimates. The UI should display these as blank cells, never as "NULL" or "#N/A".
@@ -81,7 +75,7 @@ NULL values represent years where the user did not provide estimates. The UI sho
 1. **Ticker** (text input) - when entered, attempt to fetch company name from API
 2. **Company Name** (text input, auto-populated but editable)
 3. **Next Fiscal Year End Date** (date picker) - e.g., December 31, 2026
-4. **Metric Type** (dropdown): EPS, FCFPS, Distributable Earnings, P/B, P/NAV
+4. **Metric Type** (dropdown): GAAP EPS, Norm. EPS, Mgmt. EPS, FCFPS, DEPS, NAVPS, BVPS
 5. **Analyst** (dropdown): EY, TR, JM, BB, NM
 
 ### Estimates Input (Pasteable from Excel)

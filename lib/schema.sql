@@ -7,39 +7,25 @@ CREATE TABLE IF NOT EXISTS companies (
   ticker VARCHAR(10) NOT NULL UNIQUE,
   company_name TEXT NOT NULL,
   fiscal_year_end_date DATE NOT NULL,
-  metric_type VARCHAR(30) NOT NULL CHECK(metric_type IN ('EPS', 'FCFPS', 'Distributable Earnings', 'P/B', 'P/NAV')),
+  metric_type VARCHAR(30) NOT NULL CHECK(metric_type IN ('GAAP EPS', 'Norm. EPS', 'Mgmt. EPS', 'FCFPS', 'DEPS', 'NAVPS', 'BVPS')),
   current_stock_price DECIMAL(12,4),
   price_last_updated TIMESTAMPTZ,
   scenario VARCHAR(10) NOT NULL DEFAULT 'base' CHECK(scenario IN ('base', 'bull', 'bear')),
   analyst_initials VARCHAR(5) NOT NULL CHECK(analyst_initials IN ('EY', 'TR', 'JM', 'BB', 'NM')),
   created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Estimates table - stores metrics and dividends by absolute fiscal year
+CREATE TABLE IF NOT EXISTS estimates (
+  id SERIAL PRIMARY KEY,
+  company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  fiscal_year INTEGER NOT NULL,
+  metric_value DECIMAL(12,4),
+  dividend_value DECIMAL(12,4),
+  created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-  
-  -- 11 years of metric estimates
-  fy1_metric DECIMAL(12,4),
-  fy2_metric DECIMAL(12,4),
-  fy3_metric DECIMAL(12,4),
-  fy4_metric DECIMAL(12,4),
-  fy5_metric DECIMAL(12,4),
-  fy6_metric DECIMAL(12,4),
-  fy7_metric DECIMAL(12,4),
-  fy8_metric DECIMAL(12,4),
-  fy9_metric DECIMAL(12,4),
-  fy10_metric DECIMAL(12,4),
-  fy11_metric DECIMAL(12,4),
-  
-  -- 11 years of dividend per share estimates
-  fy1_div DECIMAL(12,4),
-  fy2_div DECIMAL(12,4),
-  fy3_div DECIMAL(12,4),
-  fy4_div DECIMAL(12,4),
-  fy5_div DECIMAL(12,4),
-  fy6_div DECIMAL(12,4),
-  fy7_div DECIMAL(12,4),
-  fy8_div DECIMAL(12,4),
-  fy9_div DECIMAL(12,4),
-  fy10_div DECIMAL(12,4),
-  fy11_div DECIMAL(12,4)
+  UNIQUE(company_id, fiscal_year)
 );
 
 -- Exit Multiples table
@@ -62,12 +48,28 @@ CREATE TABLE IF NOT EXISTS submission_logs (
   snapshot_data JSONB NOT NULL
 );
 
+-- Change Logs table (tracks edits and deletions)
+CREATE TABLE IF NOT EXISTS change_logs (
+  id SERIAL PRIMARY KEY,
+  ticker VARCHAR(10) NOT NULL,
+  company_name TEXT NOT NULL,
+  change_type VARCHAR(20) NOT NULL CHECK(change_type IN ('edit', 'deletion')),
+  analyst_initials VARCHAR(5) NOT NULL,
+  changed_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+  before_snapshot JSONB,           -- Used for edits (before state)
+  after_snapshot JSONB,            -- Used for edits (after state)
+  snapshot_data JSONB              -- Used for deletions (deleted state)
+);
+
 -- Indexes for performance
 CREATE INDEX IF NOT EXISTS idx_companies_ticker ON companies(ticker);
 CREATE INDEX IF NOT EXISTS idx_companies_updated_at ON companies(updated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_estimates_company_id ON estimates(company_id);
+CREATE INDEX IF NOT EXISTS idx_estimates_fiscal_year ON estimates(fiscal_year);
 CREATE INDEX IF NOT EXISTS idx_exit_multiples_company_id ON exit_multiples(company_id);
 CREATE INDEX IF NOT EXISTS idx_submission_logs_company_id ON submission_logs(company_id);
 CREATE INDEX IF NOT EXISTS idx_submission_logs_submitted_at ON submission_logs(submitted_at DESC);
+CREATE INDEX IF NOT EXISTS idx_change_logs_changed_at ON change_logs(changed_at DESC);
 
 -- Function to auto-update updated_at timestamp
 CREATE OR REPLACE FUNCTION update_updated_at_column()
@@ -82,6 +84,12 @@ $$ language 'plpgsql';
 DROP TRIGGER IF EXISTS update_companies_updated_at ON companies;
 CREATE TRIGGER update_companies_updated_at
     BEFORE UPDATE ON companies
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+
+DROP TRIGGER IF EXISTS update_estimates_updated_at ON estimates;
+CREATE TRIGGER update_estimates_updated_at
+    BEFORE UPDATE ON estimates
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();
 

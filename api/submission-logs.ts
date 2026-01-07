@@ -2,8 +2,9 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { findAllSubmissionLogs } from '../lib/models/submissionLog.js';
 import { findCompanyById } from '../lib/models/company.js';
 import { findExitMultiplesByCompanyId } from '../lib/models/exitMultiple.js';
+import { findEstimatesByCompanyId } from '../lib/models/estimates.js';
 import { calculate5YearIRR, hasSufficientDataForIRR } from '../lib/utils/irrCalculator.js';
-import { Company } from '../lib/db.js';
+import { Company, Estimate } from '../lib/db.js';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'GET') {
@@ -16,28 +17,42 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Enrich each log with company data and calculations
     const enrichedPromises = logs.map(async (log) => {
       // Parse snapshot data (company state at submission time)
-      const snapshotCompany = JSON.parse(log.snapshot_data) as Company;
+      const snapshot = JSON.parse(log.snapshot_data);
       
       // Get current company data for ticker and name
       const currentCompany = await findCompanyById(log.company_id!);
       
-      // Get exit multiple from snapshot or current data
+      // Get exit multiple
       const exitMultiples = await findExitMultiplesByCompanyId(log.company_id!, 5);
       const exitMultiple = exitMultiples.length > 0 ? exitMultiples[0].multiple : null;
       
-      // Calculate IRR from snapshot data
+      // Extract estimates from snapshot - handle both old and new formats
+      let estimates: Estimate[] = [];
+      if (snapshot.estimates && Array.isArray(snapshot.estimates)) {
+        // New format: estimates array included in snapshot
+        estimates = snapshot.estimates;
+      }
+      
+      // For IRR calculation, use current estimates from DB if snapshot doesn't have them
+      if (estimates.length === 0 && currentCompany) {
+        estimates = await findEstimatesByCompanyId(currentCompany.id!);
+      }
+      
+      // Calculate IRR if we have enough data
       let irr: number | null = null;
-      if (exitMultiple && hasSufficientDataForIRR(snapshotCompany)) {
-        irr = calculate5YearIRR(snapshotCompany, exitMultiple);
+      if (exitMultiple && currentCompany && estimates.length > 0) {
+        if (hasSufficientDataForIRR(currentCompany, estimates)) {
+          irr = calculate5YearIRR(currentCompany, estimates, exitMultiple);
+        }
       }
       
       return {
         id: log.id,
-        ticker: currentCompany?.ticker || snapshotCompany.ticker,
-        company_name: currentCompany?.company_name || snapshotCompany.company_name,
-        price_at_submission: snapshotCompany.current_stock_price,
+        ticker: currentCompany?.ticker || snapshot.ticker,
+        company_name: currentCompany?.company_name || snapshot.company_name,
+        price_at_submission: snapshot.current_stock_price,
         exit_multiple: exitMultiple,
-        metric_type: snapshotCompany.metric_type,
+        metric_type: snapshot.metric_type,
         irr_5yr: irr,
         submitted_at: log.submitted_at,
         analyst_initials: log.analyst_initials,
@@ -52,4 +67,3 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(500).json({ error: 'Failed to fetch submission logs' });
   }
 }
-

@@ -1,10 +1,10 @@
 import { useState, useMemo } from 'react';
-import { Company } from '@/types/company';
+import { CompanyWithEstimates } from '@/types/company';
 import { formatPrice, formatPercentage, formatMultiple, formatDate, formatDateTime } from '@/utils/formatting';
 import { cn } from '@/lib/utils';
 
 interface CompaniesTableProps {
-  companies: Company[];
+  companies: CompanyWithEstimates[];
 }
 
 type SortField = 'ticker' | 'company_name' | 'current_stock_price' | 'exit_multiple_5yr' | 'irr_5yr' | 'updated_at' | 'analyst_initials';

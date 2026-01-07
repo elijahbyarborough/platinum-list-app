@@ -1,3 +1,10 @@
+#!/usr/bin/env node
+
+/**
+ * Initial database migration script for Platinum List App
+ * Creates all tables from scratch
+ */
+
 import { sql } from '@vercel/postgres';
 import { config } from 'dotenv';
 
@@ -5,10 +12,9 @@ import { config } from 'dotenv';
 config({ path: '.env.local' });
 
 async function migrate() {
-  console.log('Running database migration...');
-  
   try {
-    // Create tables one by one
+    console.log('Starting database migration...');
+    
     console.log('Creating companies table...');
     await sql`
       CREATE TABLE IF NOT EXISTS companies (
@@ -16,35 +22,27 @@ async function migrate() {
         ticker VARCHAR(10) NOT NULL UNIQUE,
         company_name TEXT NOT NULL,
         fiscal_year_end_date DATE NOT NULL,
-        metric_type VARCHAR(30) NOT NULL CHECK(metric_type IN ('EPS', 'FCFPS', 'Distributable Earnings', 'P/B', 'P/NAV')),
+        metric_type VARCHAR(30) NOT NULL CHECK(metric_type IN ('GAAP EPS', 'Norm. EPS', 'Mgmt. EPS', 'FCFPS', 'DEPS', 'NAVPS', 'BVPS')),
         current_stock_price DECIMAL(12,4),
         price_last_updated TIMESTAMPTZ,
         scenario VARCHAR(10) NOT NULL DEFAULT 'base' CHECK(scenario IN ('base', 'bull', 'bear')),
         analyst_initials VARCHAR(5) NOT NULL CHECK(analyst_initials IN ('EY', 'TR', 'JM', 'BB', 'NM')),
         created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+      )
+    `;
+    
+    console.log('Creating estimates table...');
+    await sql`
+      CREATE TABLE IF NOT EXISTS estimates (
+        id SERIAL PRIMARY KEY,
+        company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        fiscal_year INTEGER NOT NULL,
+        metric_value DECIMAL(12,4),
+        dividend_value DECIMAL(12,4),
+        created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-        fy1_metric DECIMAL(12,4),
-        fy2_metric DECIMAL(12,4),
-        fy3_metric DECIMAL(12,4),
-        fy4_metric DECIMAL(12,4),
-        fy5_metric DECIMAL(12,4),
-        fy6_metric DECIMAL(12,4),
-        fy7_metric DECIMAL(12,4),
-        fy8_metric DECIMAL(12,4),
-        fy9_metric DECIMAL(12,4),
-        fy10_metric DECIMAL(12,4),
-        fy11_metric DECIMAL(12,4),
-        fy1_div DECIMAL(12,4),
-        fy2_div DECIMAL(12,4),
-        fy3_div DECIMAL(12,4),
-        fy4_div DECIMAL(12,4),
-        fy5_div DECIMAL(12,4),
-        fy6_div DECIMAL(12,4),
-        fy7_div DECIMAL(12,4),
-        fy8_div DECIMAL(12,4),
-        fy9_div DECIMAL(12,4),
-        fy10_div DECIMAL(12,4),
-        fy11_div DECIMAL(12,4)
+        UNIQUE(company_id, fiscal_year)
       )
     `;
     
@@ -71,20 +69,57 @@ async function migrate() {
         snapshot_data JSONB NOT NULL
       )
     `;
-    
+
     console.log('Creating indexes...');
     await sql`CREATE INDEX IF NOT EXISTS idx_companies_ticker ON companies(ticker)`;
     await sql`CREATE INDEX IF NOT EXISTS idx_companies_updated_at ON companies(updated_at DESC)`;
+    await sql`CREATE INDEX IF NOT EXISTS idx_estimates_company_id ON estimates(company_id)`;
+    await sql`CREATE INDEX IF NOT EXISTS idx_estimates_fiscal_year ON estimates(fiscal_year)`;
     await sql`CREATE INDEX IF NOT EXISTS idx_exit_multiples_company_id ON exit_multiples(company_id)`;
     await sql`CREATE INDEX IF NOT EXISTS idx_submission_logs_company_id ON submission_logs(company_id)`;
     await sql`CREATE INDEX IF NOT EXISTS idx_submission_logs_submitted_at ON submission_logs(submitted_at DESC)`;
-    
-    console.log('✅ Migration completed successfully!');
+
+    console.log('Creating update_updated_at_column function...');
+    await sql`
+      CREATE OR REPLACE FUNCTION update_updated_at_column()
+      RETURNS TRIGGER AS $$
+      BEGIN
+          NEW.updated_at = CURRENT_TIMESTAMP;
+          RETURN NEW;
+      END;
+      $$ language 'plpgsql'
+    `;
+
+    console.log('Creating triggers...');
+    await sql`DROP TRIGGER IF EXISTS update_companies_updated_at ON companies`;
+    await sql`
+      CREATE TRIGGER update_companies_updated_at
+        BEFORE UPDATE ON companies
+        FOR EACH ROW
+        EXECUTE FUNCTION update_updated_at_column()
+    `;
+
+    await sql`DROP TRIGGER IF EXISTS update_estimates_updated_at ON estimates`;
+    await sql`
+      CREATE TRIGGER update_estimates_updated_at
+        BEFORE UPDATE ON estimates
+        FOR EACH ROW
+        EXECUTE FUNCTION update_updated_at_column()
+    `;
+
+    await sql`DROP TRIGGER IF EXISTS update_exit_multiples_updated_at ON exit_multiples`;
+    await sql`
+      CREATE TRIGGER update_exit_multiples_updated_at
+        BEFORE UPDATE ON exit_multiples
+        FOR EACH ROW
+        EXECUTE FUNCTION update_updated_at_column()
+    `;
+
+    console.log('Migration completed successfully!');
   } catch (error) {
-    console.error('❌ Migration failed:', error.message);
-    console.error(error);
-    process.exit(1);
+    console.error('Migration failed:', error.message);
+    throw error;
   }
 }
 
-migrate();
+migrate().catch(console.error);

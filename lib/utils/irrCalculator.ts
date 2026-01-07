@@ -1,5 +1,5 @@
-import { getMetricForYear, getDividendForYear, calculateYearFraction } from './fiscalYear.js';
-import { Company } from '../db.js';
+import { getMetricForYear, getDividendForYear, calculateYearFraction, getCurrentFiscalYear } from './fiscalYear.js';
+import { Company, Estimate } from '../db.js';
 
 /**
  * Calculate 5-year Expected Return (IRR) for a company
@@ -11,14 +11,21 @@ import { Company } from '../db.js';
  * 4. avgDividendYield = (totalDividends / 5) / currentPrice
  * 5. expectedReturn = priceCAGR + avgDividendYield
  * 
- * @param company - Company object with fiscal year data
+ * @param company - Company object with fiscal year end date
+ * @param estimates - Array of estimates for the company
  * @param exitMultiple - Exit multiple for 5-year horizon
  * @returns Calculated IRR as decimal (e.g., 0.15 for 15%) or null if insufficient data
  */
-export function calculate5YearIRR(company: Company, exitMultiple: number): number | null {
-  // Need at least Year 5 and Year 6 for interpolation
-  const year5Metric = getMetricForYear(company, 4); // Year 5 (0-indexed: years 0-4 = years 1-5)
-  const year6Metric = getMetricForYear(company, 5); // Year 6
+export function calculate5YearIRR(
+  company: Company,
+  estimates: Estimate[],
+  exitMultiple: number
+): number | null {
+  const currentFY = getCurrentFiscalYear(company.fiscal_year_end_date);
+  
+  // Need Year 5 (currentFY + 4) and Year 6 (currentFY + 5) for interpolation
+  const year5Metric = getMetricForYear(estimates, currentFY + 4);
+  const year6Metric = getMetricForYear(estimates, currentFY + 5);
   
   if (year5Metric === null || year6Metric === null) {
     return null; // Insufficient data
@@ -42,13 +49,13 @@ export function calculate5YearIRR(company: Company, exitMultiple: number): numbe
   // Calculate total dividends for years 1-5 (with Year 5 interpolated)
   const dividends: number[] = [];
   for (let i = 0; i < 5; i++) {
-    const div = getDividendForYear(company, i);
+    const div = getDividendForYear(estimates, currentFY + i);
     dividends.push(div ?? 0); // Treat null as 0
   }
   
   // Interpolate Year 5 dividend
   const year5Div = dividends[4];
-  const year6Div = getDividendForYear(company, 5) ?? 0;
+  const year6Div = getDividendForYear(estimates, currentFY + 5) ?? 0;
   dividends[4] = (yearFraction * year5Div) + ((1 - yearFraction) * year6Div);
   
   const totalDividends = dividends.reduce((sum, div) => sum + div, 0);
@@ -66,9 +73,14 @@ export function calculate5YearIRR(company: Company, exitMultiple: number): numbe
  * Check if company has sufficient data for 5-year IRR calculation
  * Requires: Year 5 and Year 6 metrics, and current stock price
  */
-export function hasSufficientDataForIRR(company: Company): boolean {
-  const year5Metric = getMetricForYear(company, 4);
-  const year6Metric = getMetricForYear(company, 5);
+export function hasSufficientDataForIRR(
+  company: Company,
+  estimates: Estimate[]
+): boolean {
+  const currentFY = getCurrentFiscalYear(company.fiscal_year_end_date);
+  
+  const year5Metric = getMetricForYear(estimates, currentFY + 4);
+  const year6Metric = getMetricForYear(estimates, currentFY + 5);
   
   return (
     year5Metric !== null &&
@@ -77,4 +89,3 @@ export function hasSufficientDataForIRR(company: Company): boolean {
     company.current_stock_price > 0
   );
 }
-
