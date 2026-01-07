@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { getFiscalYears } from '@/utils/fiscalYear';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
+import { MetricType } from '@/types/company';
 
 interface EstimateData {
   fiscal_year: number;
@@ -13,12 +14,14 @@ interface EstimatesTableProps {
   fiscalYearEndDate: string;
   estimates: EstimateData[];
   onEstimatesChange: (estimates: EstimateData[]) => void;
+  metricType?: MetricType;
 }
 
 export function EstimatesTable({
   fiscalYearEndDate,
   estimates,
   onEstimatesChange,
+  metricType = 'GAAP EPS',
 }: EstimatesTableProps) {
   const [isPasteActive, setIsPasteActive] = useState<'metrics' | 'dividends' | null>(null);
 
@@ -79,21 +82,55 @@ export function EstimatesTable({
     onEstimatesChange(newEstimates);
   };
 
-  const handlePaste = (e: React.ClipboardEvent<HTMLTableRowElement>, rowType: 'metrics' | 'dividends') => {
+  const handlePaste = (e: React.ClipboardEvent, rowType: 'metrics' | 'dividends', startYear?: number) => {
     e.preventDefault();
+    e.stopPropagation();
     const pastedData = e.clipboardData.getData('text');
-    const values = pastedData.split(/\t|\n/).filter(v => v.trim() !== '');
+    
+    // Split by tabs (Excel columns) and newlines (Excel rows), then flatten
+    // Excel typically uses tabs for columns within a row
+    const lines = pastedData.split(/\r?\n/).filter(line => line.trim() !== '');
+    const allValues: string[] = [];
+    
+    // If multiple lines, use first line (single row paste)
+    // If single line with tabs, split by tabs
+    if (lines.length > 0) {
+      const firstLine = lines[0];
+      const values = firstLine.split(/\t/).map(v => v.trim()).filter(v => v !== '');
+      allValues.push(...values);
+    }
 
-    const newEstimates = fiscalYears.map((year, idx) => {
-      const existing = getEstimate(year);
-      const pastedValue = values[idx];
-      const numValue = pastedValue ? parseFloat(pastedValue.trim()) : null;
-      const validValue = numValue !== null && !isNaN(numValue) ? numValue : null;
+    const newEstimates = [...estimates.length > 0 ? estimates : fiscalYears.map(year => ({
+      fiscal_year: year,
+      metric_value: null,
+      dividend_value: null,
+    }))];
 
-      if (rowType === 'metrics') {
-        return { ...existing, metric_value: validValue ?? existing.metric_value };
-      } else {
-        return { ...existing, dividend_value: validValue ?? existing.dividend_value };
+    // If we know the starting year (from the input that received paste), start there
+    const startIndex = startYear ? fiscalYears.indexOf(startYear) : 0;
+
+    allValues.forEach((value, idx) => {
+      const targetIndex = startIndex + idx;
+      if (targetIndex >= 0 && targetIndex < fiscalYears.length) {
+        const targetYear = fiscalYears[targetIndex];
+        const estimateIndex = newEstimates.findIndex(e => e.fiscal_year === targetYear);
+        
+        if (estimateIndex >= 0) {
+          const numValue = value ? parseFloat(value.replace(/,/g, '')) : null;
+          const validValue = numValue !== null && !isNaN(numValue) ? numValue : null;
+          
+          if (rowType === 'metrics') {
+            newEstimates[estimateIndex] = {
+              ...newEstimates[estimateIndex],
+              metric_value: validValue ?? newEstimates[estimateIndex].metric_value,
+            };
+          } else {
+            newEstimates[estimateIndex] = {
+              ...newEstimates[estimateIndex],
+              dividend_value: validValue ?? newEstimates[estimateIndex].dividend_value,
+            };
+          }
+        }
       }
     });
 
@@ -156,10 +193,7 @@ export function EstimatesTable({
             >
               <td className="px-4 py-3 bg-[hsl(var(--table-row-odd))] border-b border-border/30">
                 <div className="flex items-center gap-2">
-                  <span className="font-medium text-sm text-foreground">Metrics</span>
-                  <span className="text-[10px] text-muted-foreground bg-secondary px-1.5 py-0.5 rounded">
-                    Metric
-                  </span>
+                  <span className="font-medium text-sm text-foreground">{metricType}</span>
                 </div>
               </td>
               {fiscalYears.map((year) => {
@@ -171,6 +205,7 @@ export function EstimatesTable({
                       step="0.01"
                       value={estimate.metric_value === null ? '' : estimate.metric_value}
                       onChange={(e) => handleMetricChange(year, e.target.value)}
+                      onPaste={(e) => handlePaste(e, 'metrics', year)}
                       className="h-9 text-center text-sm px-2 bg-background/50"
                       placeholder="—"
                     />
@@ -204,6 +239,7 @@ export function EstimatesTable({
                       step="0.01"
                       value={estimate.dividend_value === null ? '' : estimate.dividend_value}
                       onChange={(e) => handleDividendChange(year, e.target.value)}
+                      onPaste={(e) => handlePaste(e, 'dividends', year)}
                       className="h-9 text-center text-sm px-2 bg-background/50"
                       placeholder="—"
                     />

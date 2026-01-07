@@ -20,11 +20,13 @@ function getIRRColorClass(irr: number | null | undefined): string {
 function EstimatesGrid({ 
   estimates, 
   compareEstimates,
-  showChanges = false 
+  showChanges = false,
+  metricType
 }: { 
   estimates: { fiscal_year: number; metric_value: number | null; dividend_value: number | null }[];
   compareEstimates?: { fiscal_year: number; metric_value: number | null; dividend_value: number | null }[];
   showChanges?: boolean;
+  metricType?: string;
 }) {
   const sortedEstimates = [...estimates].sort((a, b) => a.fiscal_year - b.fiscal_year);
   
@@ -46,7 +48,7 @@ function EstimatesGrid({
           <thead>
             <tr className="text-muted-foreground">
               <th className="text-left pr-2 font-normal">FY</th>
-              <th className="text-right pr-2 font-normal">Metric</th>
+              <th className="text-right pr-2 font-normal">{metricType || 'Metric'}</th>
               <th className="text-right font-normal">Div</th>
             </tr>
           </thead>
@@ -184,7 +186,7 @@ function EditChangeRow({ change, isExpanded, onToggle }: { change: EditChange; i
 
                   <div>
                     <div className="text-xs text-muted-foreground mb-2">Estimates</div>
-                    <EstimatesGrid estimates={change.before.estimates} />
+                    <EstimatesGrid estimates={change.before.estimates} metricType={change.before.metric_type} />
                   </div>
                 </div>
               </div>
@@ -237,6 +239,7 @@ function EditChangeRow({ change, isExpanded, onToggle }: { change: EditChange; i
                       estimates={change.after.estimates} 
                       compareEstimates={change.before.estimates}
                       showChanges={true}
+                      metricType={change.after.metric_type}
                     />
                   </div>
                 </div>
@@ -346,7 +349,7 @@ function DeletionChangeRow({ change, isExpanded, onToggle }: { change: DeletionC
 
                 <div>
                   <div className="text-xs text-muted-foreground mb-2">Estimates at Time of Deletion</div>
-                  <EstimatesGrid estimates={change.deleted.estimates} />
+                  <EstimatesGrid estimates={change.deleted.estimates} metricType={change.deleted.metric_type} />
                 </div>
               </div>
             </div>

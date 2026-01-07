@@ -42,7 +42,8 @@ export function TickerAutocomplete({
   }, []);
 
   useEffect(() => {
-    if (value.length < 1) {
+    // Don't fetch suggestions if disabled or value is too short
+    if (disabled || value.length < 1) {
       setSuggestions([]);
       setShowSuggestions(false);
       return;
@@ -66,7 +67,7 @@ export function TickerAutocomplete({
     }, 300);
 
     return () => clearTimeout(timer);
-  }, [value]);
+  }, [value, disabled]);
 
   const handleSelect = (result: SearchResult) => {
     onChange(result.symbol);
@@ -113,7 +114,7 @@ export function TickerAutocomplete({
         )}
       </div>
       
-      {showSuggestions && suggestions.length > 0 && (
+      {!disabled && showSuggestions && suggestions.length > 0 && (
         <div className="absolute z-50 w-full mt-2 bg-popover border border-border rounded-lg shadow-xl overflow-hidden animate-in fade-in-0 zoom-in-95 duration-200">
           <div className="max-h-64 overflow-auto">
             {suggestions.map((result, index) => (

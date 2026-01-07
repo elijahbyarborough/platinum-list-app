@@ -21,6 +21,7 @@ export default function SubmissionForm() {
   const [priceLastUpdated, setPriceLastUpdated] = useState<string | null>(null);
   const [refreshingPrice, setRefreshingPrice] = useState(false);
   const [submissionSuccess, setSubmissionSuccess] = useState<string | null>(null);
+  const [showOverrideDate, setShowOverrideDate] = useState(false);
 
   const [formData, setFormData] = useState<CompanyFormData>({
     ticker: ticker?.toUpperCase() || '',
@@ -30,6 +31,7 @@ export default function SubmissionForm() {
     analyst_initials: 'EY',
     exit_multiple_5yr: null,
     estimates: [],
+    override_updated_at: null,
   });
 
   // Load existing company data if editing
@@ -143,6 +145,8 @@ export default function SubmissionForm() {
       ...formData,
       current_stock_price: ticker ? undefined : stockPrice,
       price_last_updated: ticker ? undefined : priceLastUpdated,
+      // Tell the API whether this is an edit (from /edit/:ticker) or new submission (from /submit)
+      isEdit: !!ticker,
     };
 
     createCompanyMutation.mutate(submissionData);
@@ -164,6 +168,21 @@ export default function SubmissionForm() {
             {ticker ? `Updating estimates for ${ticker}` : 'Add a new company with earnings estimates'}
           </p>
         </div>
+
+        {/* Edit Warning Banner */}
+        {ticker && (
+          <div className="mb-8 flex items-start gap-3 p-4 rounded-lg bg-amber-500/10 border border-amber-500/30">
+            <svg className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+            <div>
+              <p className="text-sm font-medium text-amber-500">You are editing previously submitted estimates</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                This page is for correcting mistakes only. If you need to submit new estimates, go to New Submission instead.
+              </p>
+            </div>
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-8">
           {/* Company Information Section */}
@@ -194,6 +213,7 @@ export default function SubmissionForm() {
                   value={formData.company_name}
                   onChange={(e) => setFormData({ ...formData, company_name: e.target.value })}
                   placeholder="e.g., Apple Inc."
+                  disabled={!!ticker}
                   required
                 />
               </div>
@@ -256,6 +276,48 @@ export default function SubmissionForm() {
                   required
                 />
               </div>
+              
+              {/* Override Updated Date - Hidden by default, only for new submissions (Excel imports) */}
+              {!ticker && (
+                <div className="space-y-2">
+                  {!showOverrideDate ? (
+                    <button
+                      type="button"
+                      onClick={() => setShowOverrideDate(true)}
+                      className="text-xs text-muted-foreground hover:text-foreground underline"
+                    >
+                      Set override date for Excel imports
+                    </button>
+                  ) : (
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="override_updated_at">Override Updated Date (Optional)</Label>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowOverrideDate(false);
+                            setFormData({ ...formData, override_updated_at: null });
+                          }}
+                          className="text-xs text-muted-foreground hover:text-foreground"
+                        >
+                          Hide
+                        </button>
+                      </div>
+                      <Input
+                        id="override_updated_at"
+                        type="datetime-local"
+                        value={formData.override_updated_at || ''}
+                        onChange={(e) => setFormData({ ...formData, override_updated_at: e.target.value || null })}
+                        placeholder="Leave blank to use submission time"
+                        className="font-mono h-12 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:right-3 [&::-webkit-calendar-picker-indicator]:opacity-50 [&::-webkit-calendar-picker-indicator]:cursor-pointer"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        For Excel imports: Set the date when these estimates were actually created. Dashboard will show this date, but submission log will show when you submitted.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </section>
 
@@ -275,7 +337,17 @@ export default function SubmissionForm() {
                 <Select
                   id="metric_type"
                   value={formData.metric_type}
-                  onChange={(e) => setFormData({ ...formData, metric_type: e.target.value as MetricType })}
+                  onChange={(e) => {
+                    const newMetricType = e.target.value as MetricType;
+                    // When metric type changes, clear estimates (start fresh)
+                    // Old estimates for other metric types remain in the database untouched
+                    setFormData({ 
+                      ...formData, 
+                      metric_type: newMetricType,
+                      estimates: [],
+                      exit_multiple_5yr: null  // Also clear exit multiple since it's specific to the metric
+                    });
+                  }}
                   required
                 >
                   <option value="GAAP EPS">GAAP EPS</option>
@@ -336,6 +408,7 @@ export default function SubmissionForm() {
               fiscalYearEndDate={formData.fiscal_year_end_date}
               estimates={formData.estimates}
               onEstimatesChange={handleEstimatesChange}
+              metricType={formData.metric_type}
             />
           </section>
 
@@ -345,6 +418,7 @@ export default function SubmissionForm() {
             exitMultiple={formData.exit_multiple_5yr}
             fiscalYearEndDate={formData.fiscal_year_end_date}
             estimates={formData.estimates}
+            metricType={formData.metric_type}
           />
 
           {/* Action Buttons */}
@@ -365,7 +439,7 @@ export default function SubmissionForm() {
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                   </svg>
-                  Submit Estimates
+                  {ticker ? 'Edit Estimates' : 'Submit Estimates'}
                 </span>
               )}
             </Button>

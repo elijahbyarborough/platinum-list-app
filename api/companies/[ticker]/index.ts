@@ -18,8 +18,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(404).json({ error: 'Company not found' });
     }
     
-    // Fetch estimates
-    const estimates = await findEstimatesByCompanyId(company.id!);
+    // Fetch estimates for the company's active metric type
+    const estimates = await findEstimatesByCompanyId(company.id!, company.metric_type);
     
     // Fetch exit multiples
     const exitMultiples = await findExitMultiplesByCompanyId(company.id!, 5);

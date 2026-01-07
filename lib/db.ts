@@ -26,6 +26,7 @@ export interface Estimate {
   id?: number;
   company_id: number;
   fiscal_year: number; // Absolute year (e.g., 2026, 2027)
+  metric_type: MetricType;
   metric_value: number | null;
   dividend_value: number | null;
   created_at?: string;
@@ -69,6 +70,7 @@ export function parseEstimateRow(row: any): Estimate {
   return {
     ...row,
     fiscal_year: Number(row.fiscal_year),
+    metric_type: row.metric_type,
     metric_value: row.metric_value ? Number(row.metric_value) : null,
     dividend_value: row.dividend_value ? Number(row.dividend_value) : null,
   };

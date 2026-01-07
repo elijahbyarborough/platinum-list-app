@@ -49,4 +49,5 @@ export interface CompanyFormData {
   analyst_initials: AnalystInitials;
   exit_multiple_5yr: number | null;
   estimates: EstimateFormData[];
+  override_updated_at?: string | null; // Optional override for updated_at date (for Excel imports)
 }

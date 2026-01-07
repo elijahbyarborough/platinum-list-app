@@ -38,11 +38,12 @@ async function migrate() {
         id SERIAL PRIMARY KEY,
         company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
         fiscal_year INTEGER NOT NULL,
+        metric_type VARCHAR(30) NOT NULL CHECK(metric_type IN ('GAAP EPS', 'Norm. EPS', 'Mgmt. EPS', 'FCFPS', 'DEPS', 'NAVPS', 'BVPS')),
         metric_value DECIMAL(12,4),
         dividend_value DECIMAL(12,4),
         created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE(company_id, fiscal_year)
+        UNIQUE(company_id, fiscal_year, metric_type)
       )
     `;
     
@@ -75,6 +76,7 @@ async function migrate() {
     await sql`CREATE INDEX IF NOT EXISTS idx_companies_updated_at ON companies(updated_at DESC)`;
     await sql`CREATE INDEX IF NOT EXISTS idx_estimates_company_id ON estimates(company_id)`;
     await sql`CREATE INDEX IF NOT EXISTS idx_estimates_fiscal_year ON estimates(fiscal_year)`;
+    await sql`CREATE INDEX IF NOT EXISTS idx_estimates_metric_type ON estimates(metric_type)`;
     await sql`CREATE INDEX IF NOT EXISTS idx_exit_multiples_company_id ON exit_multiples(company_id)`;
     await sql`CREATE INDEX IF NOT EXISTS idx_submission_logs_company_id ON submission_logs(company_id)`;
     await sql`CREATE INDEX IF NOT EXISTS idx_submission_logs_submitted_at ON submission_logs(submitted_at DESC)`;

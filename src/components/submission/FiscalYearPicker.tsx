@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { getCurrentFiscalYear } from '@/utils/fiscalYear';
@@ -11,17 +11,51 @@ interface FiscalYearPickerProps {
 
 export function FiscalYearPicker({ value, onChange, required }: FiscalYearPickerProps) {
   const [userHasEdited, setUserHasEdited] = useState(false);
+  const [fiscalYearInput, setFiscalYearInput] = useState<string>('');
 
   // Calculate current fiscal year based on the date
-  const currentFiscalYear = useMemo(() => {
+  const calculatedFiscalYear = useMemo(() => {
     if (!value) return null;
     return getCurrentFiscalYear(value);
   }, [value]);
 
-  // Handle date input change - mark as user edited
+  // Sync fiscal year input with calculated value when date changes (only if user hasn't edited)
+  useEffect(() => {
+    if (calculatedFiscalYear !== null && !userHasEdited) {
+      setFiscalYearInput(calculatedFiscalYear.toString());
+    }
+  }, [calculatedFiscalYear, userHasEdited]);
+
+  // Initialize fiscal year input when value is first set
+  useEffect(() => {
+    if (calculatedFiscalYear !== null && fiscalYearInput === '') {
+      setFiscalYearInput(calculatedFiscalYear.toString());
+    }
+  }, [calculatedFiscalYear, fiscalYearInput]);
+
+  // Handle date input change
   const handleDateChange = (newValue: string) => {
     setUserHasEdited(true);
     onChange(newValue);
+  };
+
+  // Handle fiscal year input change - update the date to match
+  const handleFiscalYearChange = (newFY: string) => {
+    setFiscalYearInput(newFY);
+    setUserHasEdited(true);
+    
+    const fyNum = parseInt(newFY, 10);
+    if (!isNaN(fyNum) && value) {
+      // Parse existing date to get month and day
+      const existingDate = new Date(value);
+      const month = existingDate.getMonth(); // 0-indexed
+      const day = existingDate.getDate();
+      
+      // Create new date with the entered fiscal year
+      const newDate = new Date(fyNum, month, day);
+      const dateStr = newDate.toISOString().split('T')[0];
+      onChange(dateStr);
+    }
   };
 
   // Show "Estimated" if there's a value but user hasn't manually edited it
@@ -51,11 +85,15 @@ export function FiscalYearPicker({ value, onChange, required }: FiscalYearPicker
         <Label htmlFor="current_fiscal_year">Current Fiscal Year</Label>
         <div className="relative">
           <div className="h-12 px-4 rounded-lg bg-secondary/50 border border-border flex items-center">
-            {currentFiscalYear ? (
-              <span className="font-mono text-lg">FY {currentFiscalYear}</span>
-            ) : (
-              <span className="text-muted-foreground">—</span>
-            )}
+            <span className="text-muted-foreground font-mono mr-1">FY</span>
+            <input
+              id="current_fiscal_year"
+              type="number"
+              value={fiscalYearInput}
+              onChange={(e) => handleFiscalYearChange(e.target.value)}
+              className="font-mono text-lg bg-transparent border-none outline-none w-20 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+              placeholder="2025"
+            />
           </div>
           {showEstimated && (
             <span className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground/70 text-xs italic pointer-events-none">

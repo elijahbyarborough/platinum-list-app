@@ -6,7 +6,7 @@ export function NavHeader() {
   const location = useLocation();
 
   const isDashboard = location.pathname === '/dashboard' || location.pathname === '/';
-  const isSubmission = location.pathname === '/submit' || location.pathname.startsWith('/edit/');
+  const isNewSubmission = location.pathname === '/submit';
   const isSubmissionLog = location.pathname === '/submission-log';
 
   return (
@@ -46,7 +46,7 @@ export function NavHeader() {
               onClick={() => navigate('/submit')}
               className={cn(
                 'px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200',
-                isSubmission
+                isNewSubmission
                   ? 'bg-secondary text-foreground shadow-sm'
                   : 'text-muted-foreground hover:text-foreground hover:bg-secondary/50'
               )}
