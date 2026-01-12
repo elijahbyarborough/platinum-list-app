@@ -6,6 +6,13 @@ import { EditComparison, Change } from '@/types/editHistory';
 // In production (Vercel), API is same-origin. In development, proxy handles it.
 const API_BASE_URL = '/api';
 
+interface DashboardSnapshot {
+  id: number;
+  snapshot_date: string;
+  pdf_url: string;
+  created_at: string;
+}
+
 async function fetchApi<T>(endpoint: string, options?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${endpoint}`, {
     ...options,
@@ -81,5 +88,10 @@ export const api = {
   // Changes (edits + deletions)
   getChanges: (): Promise<Change[]> => {
     return fetchApi<Change[]>('/changes');
+  },
+
+  // Dashboard Snapshots
+  getDashboardSnapshots: (): Promise<DashboardSnapshot[]> => {
+    return fetchApi<DashboardSnapshot[]>('/dashboard-snapshots');
   },
 };

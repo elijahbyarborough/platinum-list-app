@@ -5,7 +5,7 @@
   "framework": "vite",
   "functions": {
     "api/**/*.ts": {
-      "maxDuration": 60
+      "maxDuration": 300
     }
   },
   "rewrites": [
@@ -18,6 +18,10 @@
     {
       "path": "/api/cron/refresh-prices",
       "schedule": "0 14 * * 1-5"
+    },
+    {
+      "path": "/api/generate-snapshot",
+      "schedule": "0 12 * * *"
     }
   ]
 }

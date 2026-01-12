@@ -149,6 +149,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       // For edits with metric type change, old estimates were just deleted above
       if (estimatesData.length > 0) {
         await upsertEstimates(company.id!, data.metric_type, estimatesData);
+        // Explicitly update the company's updated_at when estimates change
+        // This ensures the dashboard shows the correct submission time
+        await sql`
+          UPDATE companies
+          SET updated_at = CURRENT_TIMESTAMP
+          WHERE id = ${company.id!}
+        `;
       }
       
       // Upsert exit multiple if provided
@@ -158,6 +165,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           time_horizon_years: 5,
           multiple: exitMultipleValue,
         });
+        // Also update updated_at when exit multiple changes
+        await sql`
+          UPDATE companies
+          SET updated_at = CURRENT_TIMESTAMP
+          WHERE id = ${company.id!}
+        `;
       }
       
       // Create or update submission log entry

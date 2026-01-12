@@ -41,21 +41,21 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-[calc(100vh-4rem)] bg-grid-pattern">
-      <div className="container mx-auto px-6 py-8 max-w-7xl">
+      <div className="container mx-auto px-4 sm:px-6 py-6 sm:py-8 max-w-7xl">
         {/* Header Section */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 sm:mb-8">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight mb-1">Platinum List | IRR Tracker</h1>
-            <p className="text-muted-foreground">Tracking forward return estimates.</p>
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight mb-1">Platinum List | IRR Tracker</h1>
+            <p className="text-sm sm:text-base text-muted-foreground">Tracking forward return estimates.</p>
           </div>
           <RefreshPricesButton />
         </div>
 
         {/* Table Section */}
         <div className="rounded-xl bg-card border border-border/50 overflow-hidden">
-          <div className="px-6 py-4 border-b border-border/50">
+          <div className="px-4 sm:px-6 py-4 border-b border-border/50">
             <div>
-              <h2 className="text-lg font-semibold">Companies</h2>
+              <h2 className="text-base sm:text-lg font-semibold">Companies</h2>
             </div>
           </div>
           <CompaniesTable companies={companies} />

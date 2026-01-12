@@ -2,6 +2,7 @@ import { useState, useMemo, type CSSProperties } from 'react';
 import { CompanyWithEstimates } from '@/types/company';
 import { formatPrice, formatPercentage, formatMultiple, formatDate, formatDateTime } from '@/utils/formatting';
 import { cn } from '@/lib/utils';
+import { useIsMobile } from '@/hooks/useIsMobile';
 
 interface CompaniesTableProps {
   companies: CompanyWithEstimates[];
@@ -69,6 +70,7 @@ function getIRRBackground(irr: number | null | undefined): string {
 export function CompaniesTable({ companies }: CompaniesTableProps) {
   const [sortField, setSortField] = useState<SortField>('irr_5yr');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
+  const isMobile = useIsMobile();
 
   const sortedCompanies = useMemo(() => {
     const sorted = [...companies];
@@ -216,6 +218,78 @@ export function CompaniesTable({ companies }: CompaniesTableProps) {
     );
   }
 
+  // Mobile view - only show Ticker, 5Y Return, and Price
+  if (isMobile) {
+    return (
+      <div className="overflow-x-auto">
+        <table className="data-table w-full">
+          <thead>
+            <tr>
+              <th
+                className="cursor-pointer hover:text-foreground transition-colors group pl-4 pr-2"
+                onClick={() => handleSort('ticker')}
+              >
+                <span className="flex items-center text-xs">
+                  Ticker
+                  <SortIcon field="ticker" />
+                </span>
+              </th>
+              <th
+                className="cursor-pointer hover:text-foreground transition-colors group text-right px-2"
+                onClick={() => handleSort('irr_5yr')}
+              >
+                <span className="flex items-center justify-end text-xs">
+                  <span className="text-primary font-semibold">5Y Return</span>
+                  <SortIcon field="irr_5yr" />
+                </span>
+              </th>
+              <th
+                className="cursor-pointer hover:text-foreground transition-colors group text-right pr-4 pl-2"
+                onClick={() => handleSort('current_stock_price')}
+              >
+                <span className="flex items-center justify-end text-xs">
+                  Price
+                  <SortIcon field="current_stock_price" />
+                </span>
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {sortedCompanies.map((company, index) => (
+              <tr
+                key={company.id}
+                className="transition-all duration-150"
+              >
+                <td className="font-semibold font-mono text-foreground pl-4 pr-2 text-sm">
+                  {company.ticker}
+                </td>
+                <td className="text-right font-mono text-sm sm:text-base px-2" style={getIRRColorStyle(company.irr_5yr)}>
+                  {company.irr_5yr !== null && company.irr_5yr !== undefined ? (
+                    formatPercentage(company.irr_5yr)
+                  ) : (
+                    <span
+                      title="Needs at least 6 years of estimates for 5-year IRR"
+                      className="text-muted-foreground"
+                    >
+                      —
+                    </span>
+                  )}
+                </td>
+                <td
+                  className="text-right font-mono text-sm pr-4 pl-2"
+                  title={company.price_last_updated ? formatDateTime(company.price_last_updated) : 'Never updated'}
+                >
+                  {formatPrice(company.current_stock_price) || <span className="text-muted-foreground">—</span>}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
+  }
+
+  // Desktop view - show all columns
   return (
     <div className="overflow-x-auto">
       <table className="data-table">
