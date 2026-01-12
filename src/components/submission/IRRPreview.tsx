@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { calculate5YearIRRPreview } from '@/utils/irrCalculator';
 import { formatPercentage, formatPrice, formatMultiple } from '@/utils/formatting';
 import { cn } from '@/lib/utils';
@@ -48,6 +48,8 @@ export function IRRPreview({
   estimates,
   metricType = 'GAAP EPS',
 }: IRRPreviewProps) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  
   const result = useMemo(() => {
     return calculate5YearIRRPreview({
       currentPrice,
@@ -87,7 +89,7 @@ export function IRRPreview({
           </div>
 
           {/* Breakdown Grid */}
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
             <div className="p-4 rounded-lg bg-secondary/30 border border-border/30">
               <div className="text-xs text-muted-foreground uppercase tracking-wider mb-1">
                 5Y FWD {metricType}
@@ -128,6 +130,108 @@ export function IRRPreview({
                 {formatPercentage(result.dividendYield)}
               </div>
             </div>
+            <div className="p-4 rounded-lg bg-secondary/30 border border-border/30">
+              <div className="text-xs text-muted-foreground uppercase tracking-wider mb-1">
+                Average Dividend
+              </div>
+              <div className="text-lg font-semibold font-mono">
+                {result.averageDividend !== null ? formatPrice(result.averageDividend) : '—'}
+              </div>
+            </div>
+          </div>
+
+          {/* Expandable Explainer Section */}
+          <div className="rounded-lg bg-secondary/20 border border-border/30 overflow-hidden">
+            <button
+              type="button"
+              onClick={() => setIsExpanded(!isExpanded)}
+              className="w-full px-4 py-3 flex items-center justify-between hover:bg-secondary/30 transition-colors text-left"
+            >
+              <div className="flex items-center gap-2">
+                <svg className="w-5 h-5 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span className="font-medium text-sm">How is the IRR calculated?</span>
+              </div>
+              <svg
+                className={cn(
+                  "w-5 h-5 text-muted-foreground transition-transform duration-200",
+                  isExpanded && "rotate-180"
+                )}
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+            
+            {isExpanded && (
+              <div className="px-4 pb-4 space-y-4 text-sm text-muted-foreground">
+                <div className="pt-2 border-t border-border/30">
+                  <h4 className="font-semibold text-foreground mb-2">IRR Calculation</h4>
+                  <p className="mb-3">
+                    The Internal Rate of Return (IRR) is calculated using a time-value-of-money approach that accounts for 
+                    the exact timing of all cash flows over the 5-year period. The IRR is the discount rate that makes the 
+                    net present value (NPV) of all cash flows equal to zero.
+                  </p>
+                  <div className="bg-background/50 rounded p-3 font-mono text-xs mb-3">
+                    <div className="text-foreground mb-1">Cash Flows:</div>
+                    <div>• Initial investment: -Current Price (at time 0)</div>
+                    <div>• Dividends: Paid at midpoint of each fiscal year period</div>
+                    <div>• Final value: +Future Price (at exactly 5 years)</div>
+                  </div>
+                </div>
+
+                <div>
+                  <h4 className="font-semibold text-foreground mb-2">Price CAGR</h4>
+                  <p className="mb-2">
+                    The Price Compound Annual Growth Rate (CAGR) measures the annualized price appreciation from the current 
+                    price to the future price.
+                  </p>
+                  <div className="bg-background/50 rounded p-3 font-mono text-xs">
+                    <div className="text-foreground mb-1">Formula:</div>
+                    <div>Price CAGR = (Future Price / Current Price)<sup>(1/5)</sup> - 1</div>
+                    <div className="mt-2 text-muted-foreground">
+                      Where Future Price = 5-Year Forward {metricType} × Exit Multiple
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <h4 className="font-semibold text-foreground mb-2">Dividend Calculation</h4>
+                  <p className="mb-2">
+                    Dividends are calculated with proper timing based on when they're received during each fiscal year:
+                  </p>
+                  <ul className="list-disc list-inside space-y-1 mb-2 ml-2">
+                    <li><strong>Current Fiscal Year:</strong> Pro-rated dividend based on time remaining, paid at midpoint between today and fiscal year end</li>
+                    <li><strong>Full Fiscal Years (FY+1 to FY+4):</strong> Full dividend amounts, paid at midpoint of each fiscal year</li>
+                    <li><strong>Final Fiscal Year (FY+5):</strong> Pro-rated dividend based on fraction elapsed by 5-year mark, paid at midpoint between FY start and 5-year date</li>
+                  </ul>
+                  <div className="bg-background/50 rounded p-3 font-mono text-xs">
+                    <div className="text-foreground mb-1">Average Dividend Formula:</div>
+                    <div>Avg Div = [({'{'}% remaining × Current FY Div{'}'}) + FY1 + FY2 + FY3 + FY4 + ({'{'}(1 - % remaining) × FY5 Div{'}'})] / 5</div>
+                  </div>
+                </div>
+
+                <div>
+                  <h4 className="font-semibold text-foreground mb-2">How They Combine</h4>
+                  <p className="mb-2">
+                    The IRR calculation uses Newton-Raphson iteration to solve for the discount rate where the sum of all 
+                    discounted cash flows equals zero. This naturally combines:
+                  </p>
+                  <ul className="list-disc list-inside space-y-1 ml-2">
+                    <li>Price appreciation (from current price to future price)</li>
+                    <li>Dividend income (received at specific times throughout the 5-year period)</li>
+                    <li>Time value of money (earlier cash flows are worth more than later ones)</li>
+                  </ul>
+                  <p className="mt-2 text-xs italic">
+                    Note: The IRR is not simply Price CAGR + Dividend Yield. It's a true time-weighted return that accounts 
+                    for the exact timing of all cash flows, making it more accurate than a simple addition.
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       ) : (

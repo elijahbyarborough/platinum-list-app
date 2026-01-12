@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -16,6 +16,7 @@ import { formatPrice, formatDateTime } from '@/utils/formatting';
 export default function SubmissionForm() {
   const navigate = useNavigate();
   const { ticker } = useParams();
+  const location = useLocation();
   const queryClient = useQueryClient();
   const [stockPrice, setStockPrice] = useState<number | null>(null);
   const [priceLastUpdated, setPriceLastUpdated] = useState<string | null>(null);
@@ -47,6 +48,27 @@ export default function SubmissionForm() {
     queryFn: () => api.getSubmissionForEdit(ticker!),
     enabled: !!ticker,
   });
+
+  // Reset form when navigating to /submit (new submission, not edit)
+  // Use location.key to detect navigation even when staying on the same route
+  useEffect(() => {
+    if (!ticker && location.pathname === '/submit') {
+      // Reset form state for new submission
+      setFormData({
+        ticker: '',
+        company_name: '',
+        fiscal_year_end_date: '',
+        metric_type: 'GAAP EPS',
+        analyst_initials: 'EY',
+        exit_multiple_5yr: null,
+        estimates: [],
+        override_updated_at: null,
+      });
+      setStockPrice(null);
+      setPriceLastUpdated(null);
+      setSubmissionSuccess(null);
+    }
+  }, [location.key, location.pathname, ticker]);
 
   useEffect(() => {
     if (existingCompany) {
@@ -127,6 +149,10 @@ export default function SubmissionForm() {
         year: 'numeric'
       });
       setSubmissionSuccess(`Submission accepted at ${timeString} on ${dateString}`);
+    },
+    onError: (error: Error) => {
+      console.error('Submission error:', error);
+      alert(`Failed to submit: ${error.message || 'Unknown error'}`);
     },
   });
 
@@ -357,6 +383,8 @@ export default function SubmissionForm() {
                   <option value="DEPS">DEPS</option>
                   <option value="NAVPS">NAVPS</option>
                   <option value="BVPS">BVPS</option>
+                  <option value="DPS">DPS</option>
+                  <option value="Other">Other</option>
                 </Select>
               </div>
 

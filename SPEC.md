@@ -19,7 +19,7 @@ Build a local web application for tracking expected returns on a watchlist of st
 - ticker (string, unique)
 - company_name (string)
 - fiscal_year_end_date (date) // e.g., 2026-12-31
-- metric_type (enum: 'GAAP EPS', 'Norm. EPS', 'Mgmt. EPS', 'FCFPS', 'DEPS', 'NAVPS', 'BVPS')
+- metric_type (enum: 'GAAP EPS', 'Norm. EPS', 'Mgmt. EPS', 'FCFPS', 'DEPS', 'NAVPS', 'BVPS', 'DPS', 'Other')
 - current_stock_price (decimal, nullable)
 - price_last_updated (timestamp, nullable)
 - scenario (enum: 'base', 'bull', 'bear', default 'base') // for future use
@@ -75,7 +75,7 @@ NULL values represent years where the user did not provide estimates. The UI sho
 1. **Ticker** (text input) - when entered, attempt to fetch company name from API
 2. **Company Name** (text input, auto-populated but editable)
 3. **Next Fiscal Year End Date** (date picker) - e.g., December 31, 2026
-4. **Metric Type** (dropdown): GAAP EPS, Norm. EPS, Mgmt. EPS, FCFPS, DEPS, NAVPS, BVPS
+4. **Metric Type** (dropdown): GAAP EPS, Norm. EPS, Mgmt. EPS, FCFPS, DEPS, NAVPS, BVPS, DPS, Other
 5. **Analyst** (dropdown): EY, TR, JM, BB, NM
 
 ### Estimates Input (Pasteable from Excel)

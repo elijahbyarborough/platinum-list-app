@@ -40,7 +40,7 @@
     
     /* Custom colors for IRR visualization */
     --irr-excellent: 142 76% 45%;
-    --irr-good: 142 50% 40%;
+    --irr-good: 142 76% 45%;
     --irr-moderate: 45 93% 47%;
     --irr-low: 16 85% 50%;
     --irr-negative: 0 72% 51%;
@@ -171,12 +171,12 @@
   .data-table th {
     @apply px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider;
     @apply text-muted-foreground bg-[hsl(var(--table-header))];
-    @apply border-b border-[hsl(var(--table-border))];
+    @apply border-b border-white/20;
   }
   
   .data-table td {
     @apply px-4 py-3 text-sm;
-    @apply border-b border-[hsl(var(--table-border))/50];
+    @apply border-b border-white/20;
   }
   
   .data-table tbody tr:nth-child(odd) {
@@ -202,6 +202,7 @@
   
   .irr-good {
     @apply text-[hsl(var(--irr-good))] font-semibold;
+    opacity: 1;
   }
   
   .irr-moderate {

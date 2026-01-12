@@ -4,7 +4,7 @@ import { sql } from '@vercel/postgres';
 export { sql };
 
 // Type definitions
-export type MetricType = 'GAAP EPS' | 'Norm. EPS' | 'Mgmt. EPS' | 'FCFPS' | 'DEPS' | 'NAVPS' | 'BVPS';
+export type MetricType = 'GAAP EPS' | 'Norm. EPS' | 'Mgmt. EPS' | 'FCFPS' | 'DEPS' | 'NAVPS' | 'BVPS' | 'DPS' | 'Other';
 export type Scenario = 'base' | 'bull' | 'bear';
 export type AnalystInitials = 'EY' | 'TR' | 'JM' | 'BB' | 'NM';
 

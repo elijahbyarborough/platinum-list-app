@@ -42,7 +42,7 @@ async function migrate() {
       await sql`
         ALTER TABLE estimates 
         ADD COLUMN metric_type VARCHAR(30) 
-        CHECK(metric_type IN ('GAAP EPS', 'Norm. EPS', 'Mgmt. EPS', 'FCFPS', 'DEPS', 'NAVPS', 'BVPS'))
+        CHECK(metric_type IN ('GAAP EPS', 'Norm. EPS', 'Mgmt. EPS', 'FCFPS', 'DEPS', 'NAVPS', 'BVPS', 'DPS', 'Other'))
       `;
       console.log('  ✓ Column added');
 

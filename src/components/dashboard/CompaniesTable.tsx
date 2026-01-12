@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, type CSSProperties } from 'react';
 import { CompanyWithEstimates } from '@/types/company';
 import { formatPrice, formatPercentage, formatMultiple, formatDate, formatDateTime } from '@/utils/formatting';
 import { cn } from '@/lib/utils';
@@ -10,16 +10,48 @@ interface CompaniesTableProps {
 type SortField = 'ticker' | 'company_name' | 'current_stock_price' | 'exit_multiple_5yr' | 'irr_5yr' | 'updated_at' | 'analyst_initials';
 type SortDirection = 'asc' | 'desc';
 
-// Get IRR color class based on value
-function getIRRColorClass(irr: number | null | undefined): string {
-  if (irr === null || irr === undefined) return 'text-muted-foreground';
+// Get IRR color style based on value with gradual scaling
+function getIRRColorStyle(irr: number | null | undefined): CSSProperties | undefined {
+  if (irr === null || irr === undefined) return undefined;
   
   const percentage = irr * 100;
-  if (percentage >= 15) return 'irr-excellent';
-  if (percentage >= 10) return 'irr-good';
-  if (percentage >= 5) return 'irr-moderate';
-  if (percentage >= 0) return 'irr-low';
-  return 'irr-negative';
+  
+  // Color stops:
+  // < 6%: red (hsl(0, 72%, 51%))
+  // 6-10%: yellow (hsl(50, 100%, 50%))
+  // 10-15%: light green (hsl(142, 50%, 50%))
+  // >= 15%: solid green (hsl(142, 76%, 45%))
+  
+  let h: number, s: number, l: number;
+  
+  if (percentage < 6) {
+    // Red zone: 0-6%
+    h = 0;
+    s = 72;
+    l = 51;
+  } else if (percentage < 10) {
+    // Yellow zone: 6-10% - interpolate from red to yellow
+    const t = (percentage - 6) / 4; // 0 to 1 across 6-10%
+    h = 0 + (50 - 0) * t; // Interpolate from red (0) to yellow (50)
+    s = 72 + (100 - 72) * t;
+    l = 51 + (50 - 51) * t;
+  } else if (percentage < 15) {
+    // Light green zone: 10-15% - interpolate from yellow to light green
+    const t = (percentage - 10) / 5; // 0 to 1 across 10-15%
+    h = 50 + (142 - 50) * t; // Interpolate from yellow (50) to green (142)
+    s = 100 + (50 - 100) * t;
+    l = 50;
+  } else {
+    // Solid green zone: >= 15%
+    h = 142;
+    s = 76;
+    l = 45;
+  }
+  
+  return {
+    color: `hsl(${h}, ${s}%, ${l}%)`,
+    fontWeight: 600,
+  };
 }
 
 // Get IRR background gradient for visual indicator
@@ -208,24 +240,6 @@ export function CompaniesTable({ companies }: CompaniesTableProps) {
               </span>
             </th>
             <th
-              className="cursor-pointer hover:text-foreground transition-colors group text-right"
-              onClick={() => handleSort('current_stock_price')}
-            >
-              <span className="flex items-center justify-end">
-                Price
-                <SortIcon field="current_stock_price" />
-              </span>
-            </th>
-            <th
-              className="cursor-pointer hover:text-foreground transition-colors group text-right"
-              onClick={() => handleSort('exit_multiple_5yr')}
-            >
-              <span className="flex items-center justify-end">
-                Exit Multiple
-                <SortIcon field="exit_multiple_5yr" />
-              </span>
-            </th>
-            <th
               className="cursor-pointer hover:text-foreground transition-colors group text-right min-w-[160px]"
               onClick={() => handleSort('irr_5yr')}
             >
@@ -235,12 +249,21 @@ export function CompaniesTable({ companies }: CompaniesTableProps) {
               </span>
             </th>
             <th
+              className="cursor-pointer hover:text-foreground transition-colors group text-right"
+              onClick={() => handleSort('current_stock_price')}
+            >
+              <span className="flex items-center justify-end">
+                Price
+                <SortIcon field="current_stock_price" />
+              </span>
+            </th>
+            <th
               className="cursor-pointer hover:text-foreground transition-colors group"
-              onClick={() => handleSort('updated_at')}
+              onClick={() => handleSort('exit_multiple_5yr')}
             >
               <span className="flex items-center">
-                Updated
-                <SortIcon field="updated_at" />
+                Exit Multiple
+                <SortIcon field="exit_multiple_5yr" />
               </span>
             </th>
             <th
@@ -252,16 +275,22 @@ export function CompaniesTable({ companies }: CompaniesTableProps) {
                 <SortIcon field="analyst_initials" />
               </span>
             </th>
+            <th
+              className="cursor-pointer hover:text-foreground transition-colors group"
+              onClick={() => handleSort('updated_at')}
+            >
+              <span className="flex items-center">
+                Updated
+                <SortIcon field="updated_at" />
+              </span>
+            </th>
           </tr>
         </thead>
         <tbody>
           {sortedCompanies.map((company, index) => (
             <tr
               key={company.id}
-              className={cn(
-                'transition-all duration-150',
-                getIRRBackground(company.irr_5yr)
-              )}
+              className="transition-all duration-150"
             >
               <td className="font-semibold font-mono text-foreground">
                 {company.ticker}
@@ -269,23 +298,7 @@ export function CompaniesTable({ companies }: CompaniesTableProps) {
               <td className="text-foreground">
                 {company.company_name}
               </td>
-              <td
-                className="text-right font-mono"
-                title={company.price_last_updated ? formatDateTime(company.price_last_updated) : 'Never updated'}
-              >
-                {formatPrice(company.current_stock_price) || <span className="text-muted-foreground">—</span>}
-              </td>
-              <td className="text-right font-mono">
-                {company.exit_multiple_5yr !== null && company.exit_multiple_5yr !== undefined ? (
-                  <span>
-                    {formatMultiple(company.exit_multiple_5yr)}
-                    <span className="text-muted-foreground text-xs ml-1 font-sans">({company.metric_type})</span>
-                  </span>
-                ) : (
-                  <span className="text-muted-foreground">—</span>
-                )}
-              </td>
-              <td className={cn('text-right font-mono text-base', getIRRColorClass(company.irr_5yr))}>
+              <td className="text-right font-mono text-base" style={getIRRColorStyle(company.irr_5yr)}>
                 {company.irr_5yr !== null && company.irr_5yr !== undefined ? (
                   formatPercentage(company.irr_5yr)
                 ) : (
@@ -297,13 +310,29 @@ export function CompaniesTable({ companies }: CompaniesTableProps) {
                   </span>
                 )}
               </td>
-              <td className="text-muted-foreground text-sm">
-                {formatDate(company.updated_at) || '—'}
+              <td
+                className="text-right font-mono"
+                title={company.price_last_updated ? formatDateTime(company.price_last_updated) : 'Never updated'}
+              >
+                {formatPrice(company.current_stock_price) || <span className="text-muted-foreground">—</span>}
+              </td>
+              <td className="font-mono">
+                {company.exit_multiple_5yr !== null && company.exit_multiple_5yr !== undefined ? (
+                  <span>
+                    {formatMultiple(company.exit_multiple_5yr)}
+                    <span className="text-muted-foreground text-xs ml-1 font-sans">({company.metric_type})</span>
+                  </span>
+                ) : (
+                  <span className="text-muted-foreground">—</span>
+                )}
               </td>
               <td>
                 <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-secondary text-xs font-medium">
                   {company.analyst_initials}
                 </span>
+              </td>
+              <td className="text-foreground">
+                {formatDate(company.updated_at) || '—'}
               </td>
             </tr>
           ))}

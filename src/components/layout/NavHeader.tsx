@@ -43,7 +43,7 @@ export function NavHeader() {
               </span>
             </button>
             <button
-              onClick={() => navigate('/submit')}
+              onClick={() => navigate('/submit', { replace: false })}
               className={cn(
                 'px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200',
                 isNewSubmission

@@ -283,8 +283,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     return res.status(405).json({ error: 'Method not allowed' });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error in /api/companies:', error);
-    return res.status(500).json({ error: 'Internal server error' });
+    // Return more detailed error message if available
+    const errorMessage = error?.message || error?.detail || 'Internal server error';
+    return res.status(500).json({ error: errorMessage });
   }
 }
