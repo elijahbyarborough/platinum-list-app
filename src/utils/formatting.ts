@@ -29,15 +29,17 @@ export function formatMultiple(value: number | null | undefined): string {
 
 /**
  * Format a date string
+ * For DATE types from database, parse the YYYY-MM-DD part directly to avoid timezone issues
  */
 export function formatDate(dateString: string | null | undefined): string {
   if (!dateString) return '';
-  const date = new Date(dateString);
-  return date.toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  });
+  // Extract just the date part (YYYY-MM-DD) to avoid timezone issues with DATE types
+  const datePart = dateString.split('T')[0]; // Get YYYY-MM-DD
+  const [year, month, day] = datePart.split('-').map(Number);
+  // Create a date object using the date components (treats as local date, no timezone conversion)
+  // Format directly without timezone to preserve the date as stored
+  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  return `${monthNames[month - 1]} ${day}, ${year}`;
 }
 
 /**

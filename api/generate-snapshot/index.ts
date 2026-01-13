@@ -9,7 +9,7 @@ import PDFDocument from 'pdfkit';
 
 /**
  * Generate a PDF snapshot of the dashboard
- * This endpoint is called by Vercel Cron at 8:00 AM ET daily (12:00 UTC)
+ * This endpoint is called by Vercel Cron at 8:00 AM ET daily
  */
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Verify this is called from Vercel Cron (optional security check)
@@ -22,10 +22,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    // Get today's date in ET timezone (8:00 AM ET)
+    // Get today's date in ET timezone for the snapshot
+    // The cron runs at 8:00 AM ET, so we use today's date
     const now = new Date();
-    const etDate = new Date(now.toLocaleString('en-US', { timeZone: 'America/New_York' }));
-    const snapshotDate = etDate.toISOString().split('T')[0]; // YYYY-MM-DD format
+    // Use Intl.DateTimeFormat to properly get date components in ET timezone
+    const etDateParts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'America/New_York',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    }).formatToParts(now);
+    const snapshotDate = `${etDateParts.find(p => p.type === 'year')?.value}-${etDateParts.find(p => p.type === 'month')?.value}-${etDateParts.find(p => p.type === 'day')?.value}`;
 
     // Check if snapshot already exists for today
     const existing = await sql`
@@ -59,7 +66,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     );
 
     // Generate PDF directly from data (faster than HTML-to-PDF)
-    const pdfBuffer = await generatePDFFromData(enrichedCompanies, snapshotDate);
+    // Pass the actual creation time to show in PDF
+    const actualTime = new Date();
+    const pdfBuffer = await generatePDFFromData(enrichedCompanies, snapshotDate, actualTime);
 
     // Upload PDF to Vercel Blob Storage
     const blob = await put(`snapshots/${snapshotDate}.pdf`, pdfBuffer, {
@@ -87,7 +96,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 }
 
-async function generatePDFFromData(companies: any[], date: string): Promise<Buffer> {
+async function generatePDFFromData(companies: any[], date: string, createdAt: Date): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     try {
       const sortedCompanies = [...companies].sort((a, b) => {
@@ -121,8 +130,10 @@ async function generatePDFFromData(companies: any[], date: string): Promise<Buff
         });
       };
 
-      // 0.1 inch = 7.2 points (72 points per inch)
-      const doc = new PDFDocument({ margin: 7.2, size: 'LETTER' });
+      // PDF margin: 0.1 inch = 7.2 points (72 points per inch) - DO NOT CHANGE
+      // PDFKit margin: single number applies uniformly to all sides
+      const PDF_MARGIN = 7.2;
+      const doc = new PDFDocument({ margin: PDF_MARGIN, size: 'LETTER' });
       const buffers: Buffer[] = [];
 
       doc.on('data', buffers.push.bind(buffers));
@@ -132,20 +143,36 @@ async function generatePDFFromData(companies: any[], date: string): Promise<Buff
       });
       doc.on('error', reject);
 
-      // Header
-      doc.fontSize(20).fillColor('black').text('Platinum List | IRR Tracker', { align: 'left' });
-      doc.fontSize(10).fillColor('#666666').text(`Dashboard Snapshot @ 8:00AM ET on ${date}`, { align: 'left' });
+      // Get the actual margin values from PDFKit (they're set after document creation)
+      // PDFKit's margin affects automatic text flow, but explicit coordinates are absolute from page edge
+      const leftMargin = doc.page.margins.left;
+      const topMargin = doc.page.margins.top;
+      
+      // Header - use explicit coordinates to match table positioning exactly
+      // Start at the actual left margin position
+      doc.fontSize(20).fillColor('black').text('Platinum List | IRR Tracker', leftMargin, topMargin);
+      // Format the actual creation time in ET - use toLocaleTimeString directly on the Date object
+      const timeStr = createdAt.toLocaleTimeString('en-US', { 
+        hour: 'numeric', 
+        minute: '2-digit',
+        timeZone: 'America/New_York',
+        hour12: true 
+      });
+      doc.fontSize(10).fillColor('#666666').text(`Dashboard Snapshot @ ${timeStr} ET on ${date}`, leftMargin, doc.y);
       doc.moveDown(2);
 
-      // Column positions (better spacing - use more of the page width)
-      const colTicker = 30;
-      const colCompany = 92;   // Reduced ticker column width by 8px (30 + 62 = 92)
-      const colReturn = 246;   // Reduced company column width by 8px (92 + 154 = 246)
-      const colPrice = 301;    // Adjusted for new Return position
-      const colExit = 366;     // Adjusted for new Price position
-      const colAnalyst = 506;  // Adjusted for new Exit position
-      const colUpdated = 556;  // Adjusted for new Analyst position
-      const rightEdge = 755;
+      // Column positions - use the actual left margin from the document to ensure alignment
+      // All explicit coordinates are absolute from page edge (0,0 is top-left)
+      const colTicker = leftMargin;
+      const colCompany = leftMargin + 62;   // Ticker column width = 62
+      const colReturn = colCompany + 154;   // Company column width = 154
+      const colPrice = colReturn + 45;    // 5Y Return column width = 45
+      const colExit = colPrice + 55;     // Price column width = 55
+      const colAnalyst = colExit + 130;  // Exit Multiple column width = 130
+      const colUpdated = colAnalyst + 40;  // Analyst column width = 40
+      const PAGE_WIDTH = 612; // Letter size page width in points
+      const rightMargin = doc.page.margins.right;
+      const rightEdge = PAGE_WIDTH - rightMargin;  // Page width minus actual right margin
 
       // Table headers
       doc.fontSize(9).fillColor('black').font('Helvetica-Bold');
@@ -156,7 +183,7 @@ async function generatePDFFromData(companies: any[], date: string): Promise<Buff
       doc.text('Price', colPrice, headerY, { align: 'center', width: 55 });
       doc.text('Exit Multiple', colExit, headerY, { align: 'center', width: 130 });
       doc.text('Analyst', colAnalyst, headerY, { align: 'center', width: 40 });
-      doc.text('Updated', colUpdated, headerY, { width: 245 });
+      doc.text('Updated', colUpdated, headerY, { align: 'right', width: 245 });
 
       // Draw header line
       doc.moveTo(colTicker, headerY + 15).lineTo(rightEdge, headerY + 15).stroke();
@@ -198,7 +225,7 @@ async function generatePDFFromData(companies: any[], date: string): Promise<Buff
         const exitMultipleText = `${formatMultiple(company.exit_multiple_5yr)}${company.exit_multiple_5yr ? ` (${company.metric_type})` : ''}`;
         doc.text(exitMultipleText, colExit, y, { align: 'center', width: 130 });
         doc.text(company.analyst_initials || '—', colAnalyst, y, { align: 'center', width: 40 });
-        doc.text(formatDate(company.updated_at), colUpdated, y, { width: 245 });
+        doc.text(formatDate(company.updated_at), colUpdated, y, { align: 'right', width: 245 });
 
         doc.y = y + 18;
       });

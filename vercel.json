@@ -21,7 +21,7 @@
     },
     {
       "path": "/api/generate-snapshot",
-      "schedule": "0 12 * * *"
+      "schedule": "0 13 * * *"
     }
   ]
 }
