@@ -101,25 +101,25 @@ async function generatePDFFromData(companies: any[], date: string): Promise<Buff
 
       // Header
       doc.fontSize(20).fillColor('black').text('Platinum List | IRR Tracker', { align: 'left' });
-      doc.fontSize(10).fillColor('#666666').text(`Dashboard snapshot captured at 8:00 AM ET on ${date}`, { align: 'left' });
+      doc.fontSize(10).fillColor('#666666').text(`Dashboard Snapshot @ 8:00AM ET on ${date}`, { align: 'left' });
       doc.moveDown(2);
 
       // Column positions (better spacing - use more of the page width)
       const colTicker = 20;
-      const colCompany = 70;
-      const colReturn = 200;
-      const colPrice = 250;
-      const colExit = 310;
-      const colAnalyst = 445;
-      const colUpdated = 495;
+      const colCompany = 82;   // Reduced ticker column width by 8px (20 + 62 = 82)
+      const colReturn = 236;   // Reduced company column width by 8px (82 + 154 = 236)
+      const colPrice = 291;    // Adjusted for new Return position
+      const colExit = 356;     // Adjusted for new Price position
+      const colAnalyst = 496;  // Adjusted for new Exit position
+      const colUpdated = 546;  // Adjusted for new Analyst position
       const rightEdge = 740;
 
       // Table headers
       doc.fontSize(9).fillColor('black').font('Helvetica-Bold');
       const headerY = doc.y;
-      doc.text('Ticker', colTicker, headerY, { width: 45 });
-      doc.text('Company', colCompany, headerY, { width: 125 });
-      doc.text('5Y Return', colReturn, headerY, { align: 'center', width: 40 });
+      doc.text('Ticker', colTicker, headerY, { width: 63 });
+      doc.text('Company', colCompany, headerY, { width: 147 });
+      doc.text('5Y Return', colReturn, headerY, { align: 'center', width: 45 });
       doc.text('Price', colPrice, headerY, { align: 'center', width: 55 });
       doc.text('Exit Multiple', colExit, headerY, { align: 'center', width: 130 });
       doc.text('Analyst', colAnalyst, headerY, { align: 'center', width: 40 });
@@ -138,9 +138,9 @@ async function generatePDFFromData(companies: any[], date: string): Promise<Buff
           // Redraw headers on new page
           const newHeaderY = doc.y;
           doc.font('Helvetica-Bold').fontSize(9);
-          doc.text('Ticker', colTicker, newHeaderY, { width: 45 });
-          doc.text('Company', colCompany, newHeaderY, { width: 125 });
-          doc.text('5Y Return', colReturn, newHeaderY, { align: 'center', width: 40 });
+          doc.text('Ticker', colTicker, newHeaderY, { width: 68 });
+          doc.text('Company', colCompany, newHeaderY, { width: 155 });
+          doc.text('5Y Return', colReturn, newHeaderY, { align: 'center', width: 45 });
           doc.text('Price', colPrice, newHeaderY, { align: 'center', width: 55 });
           doc.text('Exit Multiple', colExit, newHeaderY, { align: 'center', width: 130 });
           doc.text('Analyst', colAnalyst, newHeaderY, { align: 'center', width: 40 });
@@ -158,9 +158,9 @@ async function generatePDFFromData(companies: any[], date: string): Promise<Buff
         }
 
         doc.fontSize(9);
-        doc.text(company.ticker || '—', colTicker, y, { width: 45 });
-        doc.text((company.company_name || '—').substring(0, 30), colCompany, y, { width: 125 });
-        doc.text(formatPercentage(company.irr_5yr), colReturn, y, { align: 'center', width: 40 });
+        doc.text(company.ticker || '—', colTicker, y, { width: 63 });
+        doc.text((company.company_name || '—').substring(0, 30), colCompany, y, { width: 147 });
+        doc.text(formatPercentage(company.irr_5yr), colReturn, y, { align: 'center', width: 45 });
         doc.text(formatPrice(company.current_stock_price), colPrice, y, { align: 'center', width: 55 });
         const exitMultipleText = `${formatMultiple(company.exit_multiple_5yr)}${company.exit_multiple_5yr ? ` (${company.metric_type})` : ''}`;
         doc.text(exitMultipleText, colExit, y, { align: 'center', width: 130 });
